@@ -1,5 +1,4 @@
-// components/chat/ChatMessage.js
-
+// components/chat/ChatMessage.js - USING IMAGE SERVICE
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -9,16 +8,16 @@ import {
   IconButton,
   Sheet,
   Tooltip,
+  AspectRatio,
 } from '@mui/joy';
 import {
   Copy,
   RefreshCw,
   Volume2,
 } from 'lucide-react';
-import ImageGenerator from './ImageGenerator';
+import ImageDisplay from './ImageDisplay';
 
-// Add onImageGenerated to the props
-const ChatMessage = ({ message, onCopy, onRegenerate, onSpeak, onImageGenerated, bot }) => {
+const ChatMessage = ({ message, onCopy, onRegenerate, onSpeak, bot }) => {
   const { t } = useTranslation();
   const [isRTL, setIsRTL] = useState(false);
   const isUser = message.role === 'user';
@@ -28,8 +27,11 @@ const ChatMessage = ({ message, onCopy, onRegenerate, onSpeak, onImageGenerated,
     ? [message.content, []] // For user messages, don't parse for image tags
     : parseContentForImageTags(message.content); // Only parse assistant messages
   
-  // Check if this message has stored generated images
-  const hasStoredImages = message.metadata && Array.isArray(message.metadata.imagePrompts) && message.metadata.imagePrompts.length > 0;
+  // Check for stored images in metadata - supporting both imageUrls and legacy imageData
+  const hasStoredImages = message.metadata && (
+    (Array.isArray(message.metadata.imageUrls) && message.metadata.imageUrls.length > 0) ||
+    (Array.isArray(message.metadata.imageData) && message.metadata.imageData.length > 0)
+  );
   
   useEffect(() => {
     // Check if we're in a browser environment
@@ -101,27 +103,56 @@ const ChatMessage = ({ message, onCopy, onRegenerate, onSpeak, onImageGenerated,
             {hasStoredImages ? message.content : textContent}
           </Typography>
           
-          {/* For messages with stored images in metadata */}
-          {hasStoredImages && message.metadata.imagePrompts.map((prompt, index) => (
-            <ImageGenerator 
-              key={`stored-${index}`}
-              prompt={prompt}
-              imageData={message.metadata.imageData?.[index]}
-              messageId={message.id}
-              storedImage={true}
-              index={index}
-            />
-          ))}
+          {/* Case 1: Permanent message with stored image URLs */}
+          {message.metadata && message.metadata.imagePrompts && message.metadata.imageUrls && 
+            message.metadata.imagePrompts.map((prompt, index) => (
+              <Box key={`stored-${message.id}-${index}`} sx={{ my: 2 }}>
+                <AspectRatio 
+                  ratio="1/1" 
+                  objectFit="cover" 
+                  sx={{ 
+                    borderRadius: 'md',
+                    maxWidth: 400
+                  }}
+                >
+                  <img
+                    src={message.metadata.imageUrls[index]}
+                    alt={prompt}
+                    loading="lazy"
+                  />
+                </AspectRatio>
+              </Box>
+            ))
+          }
           
-          {/* For new images detected in the message that haven't been stored yet */}
+          {/* Case 2: Legacy messages with base64 data */}
+          {message.metadata && message.metadata.imageData && !message.metadata.imageUrls && 
+            message.metadata.imageData.map((base64Data, index) => (
+              <Box key={`legacy-${message.id}-${index}`} sx={{ my: 2 }}>
+                <AspectRatio 
+                  ratio="1/1" 
+                  objectFit="cover" 
+                  sx={{ 
+                    borderRadius: 'md',
+                    maxWidth: 400
+                  }}
+                >
+                  <img
+                    src={`data:image/png;base64,${base64Data}`}
+                    alt={message.metadata.imagePrompts?.[index] || "AI generated image"}
+                    loading="lazy"
+                  />
+                </AspectRatio>
+              </Box>
+            ))
+          }
+          
+          {/* Case 3: New images using the ImageDisplay component (completely outside React rendering cycles) */}
           {!hasStoredImages && imageTags.map((prompt, index) => (
-            <ImageGenerator 
-              key={`new-${index}`}
+            <ImageDisplay
+              key={`display-${prompt.substring(0, 20)}`}
               prompt={prompt}
               messageId={message.id}
-              storedImage={false}
-              index={index}
-              onImageGenerated={onImageGenerated}
             />
           ))}
         </Sheet>

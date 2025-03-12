@@ -1,5 +1,4 @@
-// Let's update our messages API to handle streaming correctly
-// pages/api/chats/[chatId]/messages.js
+// pages/api/chats/[chatId]/messages.js - Refactored without custom prompts
 
 import prisma from "../../../../lib/prisma";
 import { getServerSession } from "next-auth/next";
@@ -155,20 +154,11 @@ export default async function handler(req, res) {
           content: msg.content,
         }));
         
-        // Add user's full name to the first message for personalization
-        const userInfo = `The user's name is ${session.user.name}.`;
-        
-        // If it's a new chat, add a system message with user info and bot's prompt
-        if (previousMessages.length <= 1) {
+        // Add system message with bot's prompt from database
+        if (formattedMessages.length > 0) {
           formattedMessages.unshift({
             role: "system",
-            content: chat.bot.prompt || `You are ${chat.bot.name}, ${chat.bot.description}. ${userInfo} Be helpful, concise, and friendly.`,
-          });
-        } else {
-          // For existing chats, we'll add the user info to the newest message
-          formattedMessages.push({
-            role: "user",
-            content: content + `\n\n${userInfo} (Note: This is just a reminder of who I am, please don't reference this directly in your response)`,
+            content: chat.bot.prompt
           });
         }
         
@@ -243,24 +233,19 @@ async function handleStreamingResponse(req, res, chatId, chat, session) {
       content: msg.content,
     }));
     
-    // Add user's full name to the first message for personalization
-    const userInfo = `The user's name is ${session.user.name}.`;
+    // Add the new user message
+    formattedMessages.push({
+      role: "user",
+      content: content
+    });
     
-    // If it's a new chat, add a system message with user info and bot's prompt
-    if (previousMessages.length <= 1) {
-      formattedMessages.unshift({
-        role: "system",
-        content: chat.bot.prompt || `You are ${chat.bot.name}, ${chat.bot.description}. ${userInfo} Be helpful, concise, and friendly.`,
-      });
-    } else {
-      // For existing chats, we'll add the user info to the newest message
-      formattedMessages.push({
-        role: "user",
-        content: content + `\n\n${userInfo} (Note: This is just a reminder of who I am, please don't reference this directly in your response)`,
-      });
-    }
+    // Add system message with bot's prompt from database
+    formattedMessages.unshift({
+      role: "system",
+      content: chat.bot.prompt
+    });
     
-    // Create user message in database first
+    // Create user message in database
     await prisma.message.create({
       data: {
         content,
@@ -313,148 +298,3 @@ async function handleStreamingResponse(req, res, chatId, chat, session) {
     res.end();
   }
 }
-
-// Now, let's update the chat page to correctly use SSE
-// Update the handleSendMessage function in pages/chat/[botId].js
-
-const handleSendMessage = async (content) => {
-  if (!chatId) return;
-  
-  setIsLoading(true);
-  setError(null);
-  
-  try {
-    // Add optimistic user message
-    const userMessage = {
-      id: `temp-${Date.now()}`,
-      content,
-      role: "user",
-      createdAt: new Date().toISOString(),
-    };
-    
-    setMessages(prev => [...prev, userMessage]);
-    
-    // Check if we should use streaming
-    const useStreaming = !content.toLowerCase().includes("generate") && 
-                       !content.toLowerCase().includes("create an image") &&
-                       !content.toLowerCase().includes("draw") &&
-                       !content.toLowerCase().includes("make an image");
-    
-    if (useStreaming) {
-      // Create a streaming message placeholder
-      const streamingMessageId = `streaming-${Date.now()}`;
-      let streamContent = "";
-      
-      setStreamingMessage({
-        id: streamingMessageId,
-        content: "",
-        role: "assistant",
-        createdAt: new Date().toISOString(),
-      });
-      
-      // Set up the event source - encode content properly for URLs
-      const encodedContent = encodeURIComponent(content);
-      const eventSource = new EventSource(`/api/chats/${chatId}/messages?stream=true&content=${encodedContent}`);
-      
-      // Handle incoming events
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          if (data.error) {
-            setError(data.error);
-            eventSource.close();
-            setIsLoading(false);
-            setStreamingMessage(null);
-            return;
-          }
-          
-          if (data.content) {
-            streamContent += data.content;
-            setStreamingMessage(prev => ({
-              ...prev,
-              content: streamContent,
-            }));
-          }
-          
-          if (data.done) {
-            eventSource.close();
-            setIsLoading(false);
-            
-            // Add the final message
-            setMessages(prev => [
-              ...prev.filter(msg => msg.id !== userMessage.id),
-              {
-                ...userMessage,
-                id: Date.now().toString() // Ensure we have a clean ID
-              },
-              {
-                id: data.messageId,
-                content: streamContent,
-                role: "assistant",
-                createdAt: new Date().toISOString(),
-              },
-            ]);
-            
-            setStreamingMessage(null);
-          }
-        } catch (error) {
-          console.error("Error parsing event data:", error);
-          eventSource.close();
-          setIsLoading(false);
-          setError("Error processing response. Please try again.");
-          setStreamingMessage(null);
-        }
-      };
-      
-      eventSource.onerror = (err) => {
-        console.error("EventSource error:", err);
-        eventSource.close();
-        setIsLoading(false);
-        setError("Error streaming response. Please try again.");
-        setStreamingMessage(null);
-      };
-      
-      return; // We're handling everything via streaming
-    }
-    
-    // Non-streaming request (for image generation)
-    const response = await fetch(`/api/chats/${chatId}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ content }),
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to send message');
-    }
-    
-    const assistantMessage = await response.json();
-    
-    // Replace optimistic message with real one and add assistant response
-    setMessages(prev => [
-      ...prev.filter(msg => msg.id !== userMessage.id),
-      {
-        ...userMessage,
-        id: Date.now().toString() // Ensure we have a clean ID
-      },
-      assistantMessage,
-    ]);
-    
-    // Update token usage
-    if (assistantMessage.tokens) {
-      setTokenUsage(prev => ({
-        ...prev,
-        used: prev.used + assistantMessage.tokens,
-      }));
-    }
-    
-    setIsLoading(false);
-  } catch (error) {
-    console.error('Error sending message:', error);
-    setError('Failed to send message. Please try again.');
-    setIsLoading(false);
-  }
-};

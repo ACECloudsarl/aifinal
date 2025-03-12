@@ -1,5 +1,5 @@
-// components/chat/ImageGenerator.js
-import React, { useState, useEffect } from 'react';
+// components/chat/ImageGenerator.js - NO TEMPORARY IDS
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   AspectRatio,
@@ -12,65 +12,162 @@ import {
 } from '@mui/joy';
 import { Download, ZoomIn } from 'lucide-react';
 
+// Global cache of generated images by prompt
+const imageCache = new Map();
+
 const ImageGenerator = ({ 
   prompt, 
-  messageId, 
-  storedImage = false, 
-  imageData: initialImageData = null,
+  messageId = null, 
+  storedImageUrl = null,
   index = 0,
+  chatId = null,
   onImageGenerated = null
 }) => {
-  const [imageData, setImageData] = useState(initialImageData);
-  const [isLoading, setIsLoading] = useState(!storedImage && !initialImageData);
+  const [imageUrl, setImageUrl] = useState(storedImageUrl);
+  const [isLoading, setIsLoading] = useState(!storedImageUrl);
   const [error, setError] = useState(null);
   const [open, setOpen] = useState(false);
   
+  // Track if component is mounted
+  const isMounted = useRef(true);
+  
+  // Keep track of whether we've attempted to update the database
+  const hasAttemptedDbUpdate = useRef(false);
+  
+  // Store the generated URL for later database update
+  const generatedUrlRef = useRef(null);
+  
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+  
+  // Generate the image once on mount
   useEffect(() => {
     const generateImage = async () => {
-      // Only generate if this is a new image (not stored) and we don't have imageData yet
-      if (storedImage || imageData) return;
+      // Skip if we already have an image
+      if (storedImageUrl || imageUrl) {
+        return;
+      }
+      
+      setIsLoading(true);
       
       try {
-        setIsLoading(true);
-        setError(null);
+        // Check cache first
+        if (imageCache.has(prompt)) {
+          console.log(`Using cached image for prompt: ${prompt.substring(0, 30)}...`);
+          const cachedUrl = imageCache.get(prompt);
+          setImageUrl(cachedUrl);
+          generatedUrlRef.current = cachedUrl;
+          setIsLoading(false);
+          
+          // Update UI immediately via callback
+          if (onImageGenerated) {
+            onImageGenerated(prompt, cachedUrl, index);
+          }
+          return;
+        }
         
-        const response = await fetch('/api/images/generate', {
+        console.log(`Generating image for prompt: ${prompt.substring(0, 30)}...`);
+        
+        // Generate and upload the image
+        const response = await fetch('/api/images/generate-and-upload', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ prompt, messageId, index }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt }),
         });
+        
+        if (!response.ok) {
+          throw new Error('Failed to generate image');
+        }
         
         const data = await response.json();
         
-        if (!response.ok) {
-          throw new Error(data.message || 'Failed to generate image');
+        if (!data.success || !data.url) {
+          throw new Error('Failed to get image URL');
         }
         
-        setImageData(data.imageData);
+        console.log(`Image generated successfully: ${data.url}`);
         
-        // Save the generated image to the message in the database
-        if (messageId && onImageGenerated) {
-          onImageGenerated(messageId, prompt, data.imageData, index);
+        // Add to cache
+        imageCache.set(prompt, data.url);
+        
+        // Update state if still mounted
+        if (isMounted.current) {
+          setImageUrl(data.url);
+          generatedUrlRef.current = data.url;
+          setIsLoading(false);
+          
+          // Update UI immediately via callback
+          if (onImageGenerated) {
+            onImageGenerated(prompt, data.url, index);
+          }
         }
       } catch (error) {
         console.error('Error generating image:', error);
-        setError(error.message || 'Failed to generate image');
-      } finally {
-        setIsLoading(false);
+        if (isMounted.current) {
+          setError(error.message || 'Failed to generate image');
+          setIsLoading(false);
+        }
       }
     };
     
     generateImage();
-  }, [prompt, messageId, storedImage, imageData, index, onImageGenerated]);
+  }, [prompt, storedImageUrl, index, onImageGenerated]);
+  
+  // Attempt to update the database when messageId becomes available
+  useEffect(() => {
+    const updateDatabase = async () => {
+      // Only proceed if:
+      // 1. We have a valid messageId (not a streaming ID)
+      // 2. We have a generated image URL
+      // 3. We haven't attempted to update the database yet
+      if (
+        messageId && 
+        !messageId.startsWith('streaming-') && 
+        !messageId.startsWith('temp-') &&
+        generatedUrlRef.current && 
+        !hasAttemptedDbUpdate.current
+      ) {
+        console.log(`Updating database with generated image for message: ${messageId}`);
+        hasAttemptedDbUpdate.current = true;
+        
+        try {
+          // Call API to update the message metadata
+          const response = await fetch(`/api/messages/${messageId}/storeImage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt,
+              imageUrl: generatedUrlRef.current,
+              index
+            }),
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to store image in database');
+          }
+          
+          console.log(`Successfully updated database for message: ${messageId}`);
+        } catch (error) {
+          console.error('Error updating database:', error);
+          // We don't set an error state here as the image is still displayed correctly
+        }
+      }
+    };
+    
+    updateDatabase();
+  }, [messageId, prompt, index]);
   
   const handleDownload = () => {
-    if (!imageData) return;
+    if (!imageUrl) return;
     
     const link = document.createElement('a');
-    link.href = `data:image/png;base64,${imageData}`;
-    link.download = `generated-image-${Date.now()}.png`;
+    link.href = imageUrl;
+    link.download = `ai-image-${Date.now()}.png`;
+    link.target = '_blank';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -109,7 +206,7 @@ const ImageGenerator = ({
     );
   }
   
-  if (!imageData) return null;
+  if (!imageUrl) return null;
   
   return (
     <Box sx={{ my: 2 }}>
@@ -123,11 +220,12 @@ const ImageGenerator = ({
           '&:hover': {
             transform: 'scale(1.01)',
           },
+          maxWidth: 400,
         }}
         onClick={() => setOpen(true)}
       >
         <img
-          src={`data:image/png;base64,${imageData}`}
+          src={imageUrl}
           alt={prompt}
           loading="lazy"
         />
@@ -165,7 +263,7 @@ const ImageGenerator = ({
           <ModalClose />
           <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
             <img
-              src={`data:image/png;base64,${imageData}`}
+              src={imageUrl}
               alt={prompt}
               style={{
                 width: '100%',

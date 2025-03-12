@@ -30,7 +30,8 @@ function Chat() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [tokenUsage, setTokenUsage] = useState({ used: 0, total: 4000 });
   const [error, setError] = useState(null);
-  
+  const [messagesWithImages, setMessagesWithImages] = useState({});
+
   const messagesEndRef = useRef(null);
   
   // Initialization effect - this runs first to set up the chat
@@ -40,11 +41,16 @@ useEffect(() => {
       try {
         setIsInitializing(true);
         setError(null);
+
+        const pathParam = router.query.botId;
+        const effectiveChatId = router.query.chatId || pathParam;
+
+
         
         // Case 1: Direct navigation to a specific chat - use chatId from URL
-        if (urlChatId) {
-          console.log("Loading existing chat:", urlChatId);
-          setChatId(urlChatId);
+        if (effectiveChatId) {
+          console.log("Loading existing chat:", effectiveChatId);
+          setChatId(effectiveChatId);
           
           try {
             // Get chat data
@@ -80,7 +86,8 @@ useEffect(() => {
           }
         }
         // Case 2: Starting a new chat with a bot - use botId from URL
-        else if (urlBotId) {
+        else if (router.query.botId) {
+          const urlBotId = router.query.botId;
           console.log("Creating new chat with bot:", urlBotId);
           
           // First try to fetch the bot details
@@ -144,10 +151,10 @@ useEffect(() => {
     };
     
     // Only run when URL parameters or session changes
-    if ((urlChatId || urlBotId) && session) {
-      initializeChat();
-    }
-  }, [urlChatId, urlBotId, session, router]);
+if (router.isReady && session) {
+  initializeChat();
+}
+}, [router.isReady, router.query, session, router]);
   
   
   // Load chat data and messages once chatId is set
@@ -310,44 +317,88 @@ useEffect(() => {
     }
   };
 
-  const handleImageGenerated = async (messageId, prompt, imageData, index) => {
-    try {
-      // Update the messages in state to remove the image tags
-      setMessages(prevMessages => 
-        prevMessages.map(msg => {
-          if (msg.id === messageId) {
-            // Clean content of image tags
-            const cleanedContent = msg.content.replace(/\[\!\|(.*?)\|\!\]/g, '').trim();
+  // This callback is called by ImageGenerator to update the UI immediately
+const handleImageGenerated = (prompt, imageUrl, index) => {
+  console.log(`Image generated for prompt: ${prompt.substring(0, 30)}... URL: ${imageUrl}`);
+  
+  // Store the generated image in local state
+  setMessagesWithImages(prev => ({
+    ...prev,
+    [prompt]: imageUrl
+  }));
+};
+
+// Pass the local images state to ChatMessage component
+const renderMessage = (message) => (
+  <ChatMessage
+    key={message.id}
+    message={message}
+    bot={bot}
+    onCopy={handleCopy}
+    onRegenerate={handleRegenerate}
+    onSpeak={handleSpeak}
+    onImageGenerated={handleImageGenerated}
+    localImages={messagesWithImages} // Pass the local images state
+  />
+);
+
+// When streaming is complete and we get a permanent ID, save images to the database
+useEffect(() => {
+  const saveImagesToPermanentMessage = async () => {
+    // Find the most recently added message that isn't a user message
+    const lastMessage = messages.length > 0 ? 
+      [...messages].reverse().find(msg => msg.role !== 'user') : null;
+    
+    // Only proceed if:
+    // 1. We have a last message
+    // 2. It has a valid MongoDB ID (not a streaming ID)
+    // 3. We have local images that need saving
+    if (
+      lastMessage && 
+      lastMessage.id && 
+      !lastMessage.id.startsWith('streaming-') && 
+      !lastMessage.id.startsWith('temp-') &&
+      Object.keys(messagesWithImages).length > 0
+    ) {
+      console.log(`Saving images for permanent message ID: ${lastMessage.id}`);
+      
+      // Extract image tags from the message
+      const regex = /\[\!\|(.*?)\|\!\]/g;
+      const content = lastMessage.content || '';
+      let match;
+      
+      while ((match = regex.exec(content)) !== null) {
+        const prompt = match[1].trim();
+        const imageUrl = messagesWithImages[prompt];
+        
+        if (prompt && imageUrl) {
+          try {
+            // Call API to update the message metadata
+            const response = await fetch(`/api/messages/${lastMessage.id}/storeImage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                prompt,
+                imageUrl,
+                index: 0 // We don't really need an index anymore
+              }),
+            });
             
-            // Create/update metadata with image information
-            const imagePrompts = msg.imagePrompts || [];
-            const imageDataArray = msg.imageDataArray || [];
-            
-            if (!imagePrompts.includes(prompt)) {
-              imagePrompts.push(prompt);
-              imageDataArray.push(imageData);
+            if (response.ok) {
+              console.log(`Successfully saved image for prompt: ${prompt.substring(0, 30)}...`);
             } else {
-              // Replace existing image at that index
-              const existingIndex = imagePrompts.indexOf(prompt);
-              if (existingIndex >= 0) {
-                imageDataArray[existingIndex] = imageData;
-              }
+              console.error(`Failed to save image for prompt: ${prompt.substring(0, 30)}...`);
             }
-            
-            return {
-              ...msg,
-              content: cleanedContent,
-              imagePrompts,
-              imageDataArray
-            };
+          } catch (error) {
+            console.error(`Error saving image for prompt: ${prompt.substring(0, 30)}...`, error);
           }
-          return msg;
-        })
-      );
-    } catch (error) {
-      console.error("Error storing generated image:", error);
+        }
+      }
     }
   };
+  
+  saveImagesToPermanentMessage();
+}, [messages, messagesWithImages]);
   
   const handleCopy = (content) => {
     navigator.clipboard.writeText(content);

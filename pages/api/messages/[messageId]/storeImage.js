@@ -1,4 +1,4 @@
-// pages/api/messages/[messageId]/storeImage.js
+// pages/api/messages/[messageId]/storeImage.js - UPDATED FOR R2
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../../../lib/auth";
 import prisma from "../../../../lib/prisma";
@@ -14,13 +14,15 @@ export default async function handler(req, res) {
   }
   
   const { messageId } = req.query;
-  const { prompt, imageData, index = 0 } = req.body;
+  const { prompt, imageUrl, index = 0 } = req.body;
   
-  if (!prompt || !imageData) {
-    return res.status(400).json({ message: "Prompt and imageData are required" });
+  if (!prompt || !imageUrl) {
+    return res.status(400).json({ message: "Prompt and imageUrl are required" });
   }
   
   try {
+    console.log(`Storing image URL for message ${messageId}, prompt: ${prompt.substring(0, 30)}...`);
+    
     // Get the message
     const message = await prisma.message.findUnique({
       where: { id: messageId },
@@ -49,22 +51,30 @@ export default async function handler(req, res) {
     // Prepare metadata
     const metadata = message.metadata || {};
     metadata.imagePrompts = metadata.imagePrompts || [];
-    metadata.imageData = metadata.imageData || [];
+    metadata.imageUrls = metadata.imageUrls || [];
     
-    // Add or update image data
+    // Add or update image URL
     if (!metadata.imagePrompts.includes(prompt)) {
+      console.log(`Adding new prompt: ${prompt.substring(0, 30)}...`);
       metadata.imagePrompts.push(prompt);
-      metadata.imageData.push(imageData);
+      metadata.imageUrls.push(imageUrl);
     } else {
       // Replace existing image at that index
       const existingIndex = metadata.imagePrompts.indexOf(prompt);
       if (existingIndex >= 0) {
-        metadata.imageData[existingIndex] = imageData;
+        console.log(`Updating existing prompt at index ${existingIndex}`);
+        metadata.imageUrls[existingIndex] = imageUrl;
       }
     }
     
+    // Log the updated metadata structure
+    console.log(`Updated metadata structure:`, {
+      promptsCount: metadata.imagePrompts.length,
+      urlsCount: metadata.imageUrls.length
+    });
+    
     // Update the message
-    await prisma.message.update({
+    const updatedMessage = await prisma.message.update({
       where: { id: messageId },
       data: {
         content: cleanedContent,
@@ -72,7 +82,15 @@ export default async function handler(req, res) {
       },
     });
     
-    res.status(200).json({ success: true });
+    console.log(`Message updated successfully. Metadata now has ${updatedMessage.metadata?.imagePrompts?.length || 0} prompts`);
+    
+    res.status(200).json({ 
+      success: true,
+      metadata: {
+        promptsCount: metadata.imagePrompts.length,
+        urlsCount: metadata.imageUrls.length
+      }
+    });
   } catch (error) {
     console.error("Error storing image:", error);
     res.status(500).json({ message: "Failed to store image", error: error.message });

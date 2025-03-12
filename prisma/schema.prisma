@@ -43,6 +43,7 @@ model User {
   password      String?
   image         String?
   plan          String    @default("free")
+  role          String    @default("user")
   accounts      Account[]
   sessions      Session[]
   chats         Chat[]
@@ -64,7 +65,7 @@ model Bot {
   name        String
   description String
   avatar      String
-  model       String
+  model       String   @default("meta-llama/Llama-3.3-70B-Instruct-Turbo-Free") // New field
   category    String
   chats       Chat[]
   prompt      String   @default("You are a helpful AI assistant.") // New field

@@ -1,8 +1,14 @@
-// pages/api/images/generate.js
+// pages/api/images/generate.js - FIXED VERSION
 import { generateImage } from "../../../lib/togetherAI";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../../lib/auth";
 import prisma from "../../../lib/prisma";
+
+// Helper function to check if a string is a valid MongoDB ObjectID
+function isValidObjectId(id) {
+  // MongoDB ObjectIDs are 24-character hexadecimal strings
+  return /^[0-9a-fA-F]{24}$/.test(id);
+}
 
 export default async function handler(req, res) {
   // Check authentication
@@ -25,8 +31,8 @@ export default async function handler(req, res) {
     // Generate the image
     const imageBase64 = await generateImage(prompt);
     
-    // If messageId is provided, store the image in the message metadata
-    if (messageId) {
+    // If messageId is provided and is a valid ObjectID, store the image in the message metadata
+    if (messageId && isValidObjectId(messageId)) {
       try {
         // Get existing message
         const message = await prisma.message.findUnique({
@@ -68,6 +74,9 @@ export default async function handler(req, res) {
         console.error("Error storing image in database:", dbError);
         // Continue to return the image even if storage fails
       }
+    } else if (messageId) {
+      // If messageId is provided but not a valid ObjectID (e.g., streaming-id)
+      console.log(`Skipping database update for non-ObjectID messageId: ${messageId}`);
     }
     
     res.status(200).json({ 
