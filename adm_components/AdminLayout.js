@@ -2,7 +2,7 @@
 import React from 'react';
 import { Box, Typography, List, ListItem, ListItemButton, ListItemDecorator, Divider } from '@mui/joy';
 import { useRouter } from 'next/router';
-import { Settings, Users, Bot, Database, Home, Shield } from 'lucide-react';
+import { Settings, Users, Bot, Database, Home, Shield, Volume2 } from 'lucide-react';
 import Layout from '../components/layout/Layout';
 
 const AdminLayout = ({ children, title }) => {
@@ -18,6 +18,11 @@ const AdminLayout = ({ children, title }) => {
       icon: <Bot size={20} />, 
       label: 'Bots Management', 
       path: '/admin/bots' 
+    },
+    { 
+      icon: <Volume2 size={20} />, 
+      label: 'Voices', 
+      path: '/admin/voices' 
     },
     { 
       icon: <Users size={20} />, 

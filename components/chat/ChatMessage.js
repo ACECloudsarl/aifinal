@@ -1,4 +1,4 @@
-// components/chat/ChatMessage.js - USING IMAGE SERVICE
+// components/chat/ChatMessage.js
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -14,12 +14,16 @@ import {
   Copy,
   RefreshCw,
   Volume2,
+  VolumeX,
 } from 'lucide-react';
 import ImageDisplay from './ImageDisplay';
+import voiceService from '@/lib/VoiceService';
 
-const ChatMessage = ({ message, onCopy, onRegenerate, onSpeak, bot }) => {
+const ChatMessage = ({ message, onCopy, onRegenerate, bot }) => {
   const { t } = useTranslation();
   const [isRTL, setIsRTL] = useState(false);
+  const [isMessageSpeaking, setIsMessageSpeaking] = useState(false);
+  const [autoTTSEnabled, setAutoTTSEnabled] = useState(false);
   const isUser = message.role === 'user';
   
   // Parse content for image tags - but only for assistant messages
@@ -27,20 +31,69 @@ const ChatMessage = ({ message, onCopy, onRegenerate, onSpeak, bot }) => {
     ? [message.content, []] // For user messages, don't parse for image tags
     : parseContentForImageTags(message.content); // Only parse assistant messages
   
-  // Check for stored images in metadata - supporting both imageUrls and legacy imageData
+  // Check for stored images in metadata
   const hasStoredImages = message.metadata && (
     (Array.isArray(message.metadata.imageUrls) && message.metadata.imageUrls.length > 0) ||
     (Array.isArray(message.metadata.imageData) && message.metadata.imageData.length > 0)
   );
   
+  // Check RTL and load voice settings on mount
   useEffect(() => {
     // Check if we're in a browser environment
     if (typeof window !== 'undefined') {
       setIsRTL(document.dir === 'rtl');
+      
+      // Load voice settings
+      const loadSettings = async () => {
+        const settings = await voiceService.loadUserSettings();
+        if (settings) {
+          setAutoTTSEnabled(settings.autoTTS);
+        }
+      };
+      
+      loadSettings();
     }
+    
+    // Subscribe to voice service playing events
+    const unsubscribePlaying = voiceService.subscribeToPlaying(() => {
+      if (isMessageSpeaking) {
+        setIsMessageSpeaking(true);
+      }
+    });
+    
+    // Subscribe to voice service stopped events
+    const unsubscribeStopped = voiceService.subscribeToStopped(() => {
+      setIsMessageSpeaking(false);
+    });
+    
+    return () => {
+      // Clean up subscriptions
+      unsubscribePlaying();
+      unsubscribeStopped();
+    };
   }, []);
   
-  // Function to parse [!|image description|!] tags
+  // Auto-speak assistant messages if auto TTS is enabled
+  useEffect(() => {
+    const autoSpeak = async () => {
+      // Only auto-speak assistant messages, not temporary messages, and only if not already speaking
+      if (
+        !isUser && 
+        autoTTSEnabled && 
+        !message.id.startsWith('temp-') && 
+        !isMessageSpeaking
+      ) {
+        // Don't auto-speak messages with images
+        if (!hasStoredImages && imageTags.length === 0) {
+          handleSpeak();
+        }
+      }
+    };
+    
+    autoSpeak();
+  }, [autoTTSEnabled, message.id, isUser, hasStoredImages, imageTags.length]);
+  
+  // Function to parse image tags
   function parseContentForImageTags(content) {
     if (!content) return [content, []];
     
@@ -58,6 +111,28 @@ const ChatMessage = ({ message, onCopy, onRegenerate, onSpeak, bot }) => {
     
     return [cleanedContent, imageTags];
   }
+  
+  // Handle text-to-speech
+  const handleSpeak = async () => {
+    if (isMessageSpeaking) {
+      voiceService.stopAudio();
+      setIsMessageSpeaking(false);
+      return;
+    }
+    
+    const contentToSpeak = hasStoredImages ? message.content : textContent;
+    
+    // Use bot's voice ID if available
+    const voiceId = bot?.voiceId;
+    
+    try {
+      setIsMessageSpeaking(true);
+      await voiceService.speak(contentToSpeak, voiceId);
+    } catch (error) {
+      console.error('Error speaking message:', error);
+      setIsMessageSpeaking(false);
+    }
+  };
 
   return (
     <Box
@@ -147,7 +222,7 @@ const ChatMessage = ({ message, onCopy, onRegenerate, onSpeak, bot }) => {
             ))
           }
           
-          {/* Case 3: New images using the ImageDisplay component (completely outside React rendering cycles) */}
+          {/* Case 3: New images using the ImageDisplay component */}
           {!hasStoredImages && imageTags.map((prompt, index) => (
             <ImageDisplay
               key={`display-${prompt.substring(0, 20)}`}
@@ -188,14 +263,18 @@ const ChatMessage = ({ message, onCopy, onRegenerate, onSpeak, bot }) => {
               </IconButton>
             </Tooltip>
             
-            <Tooltip title={t('chat.speak')}>
+            <Tooltip title={isMessageSpeaking ? t('chat.stop_speaking') : t('chat.speak')}>
               <IconButton
                 variant="plain"
-                color="neutral"
+                color={isMessageSpeaking ? "primary" : "neutral"}
                 size="sm"
-                onClick={() => onSpeak(hasStoredImages ? message.content : textContent)}
+                onClick={handleSpeak}
               >
-                <Volume2 size={16} />
+                {isMessageSpeaking ? (
+                  <VolumeX size={16} />
+                ) : (
+                  <Volume2 size={16} />
+                )}
               </IconButton>
             </Tooltip>
           </Box>

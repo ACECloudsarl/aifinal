@@ -1,4 +1,4 @@
-// pages/admin/bots/[botId].js
+// pages/admin/bots/[botId].js - Modified to add voice selection
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import {
@@ -21,10 +21,12 @@ import {
   TabPanel,
   Alert,
   AspectRatio,
+  IconButton,
 } from '@mui/joy';
-import { Save, ArrowLeft, Image, Bot, FileText, Cpu } from 'lucide-react';
+import { Save, ArrowLeft, Image, Bot, FileText, Cpu, Volume2, VolumeX } from 'lucide-react';
 import AdminLayout from '@/adm_components/AdminLayout';
 import withAuth from '../../../lib/withAuth';
+import voiceService from '../../../services/VoiceService';
 
 const modelOptions = [
   { value: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free", label: "Llama 3.3 70B (Advanced)" },
@@ -49,6 +51,8 @@ function AdminBotEdit() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [voices, setVoices] = useState([]);
+  const [isPlaying, setIsPlaying] = useState(false);
   
   const [botData, setBotData] = useState({
     name: '',
@@ -57,7 +61,31 @@ function AdminBotEdit() {
     model: 'meta-llama/Llama-3.3-8B-Instruct-Turbo-Free',
     category: 'Education',
     prompt: 'You are a helpful AI assistant.',
+    voiceId: null,
   });
+  
+  // Initialize voice service and load data
+  useEffect(() => {
+    voiceService.initialize();
+    
+    const unsubscribePlaying = voiceService.subscribeToPlaying(() => {
+      setIsPlaying(true);
+    });
+    
+    const unsubscribeStopped = voiceService.subscribeToStopped(() => {
+      setIsPlaying(false);
+    });
+    
+    return () => {
+      unsubscribePlaying();
+      unsubscribeStopped();
+      
+      // Stop any playing audio when component unmounts
+      if (isPlaying) {
+        voiceService.stopAudio();
+      }
+    };
+  }, []);
   
   // Fetch bot data if editing an existing bot
   useEffect(() => {
@@ -67,6 +95,20 @@ function AdminBotEdit() {
       setLoading(false);
     }
   }, [router.isReady, botId]);
+  
+  // Load available voices
+  useEffect(() => {
+    const loadVoices = async () => {
+      try {
+        const voicesData = await voiceService.loadVoices();
+        setVoices(voicesData);
+      } catch (error) {
+        console.error('Error loading voices:', error);
+      }
+    };
+    
+    loadVoices();
+  }, []);
   
   const fetchBotData = async () => {
     setLoading(true);
@@ -151,6 +193,22 @@ function AdminBotEdit() {
     }
   };
   
+  const handlePreviewVoice = async () => {
+    if (isPlaying) {
+      voiceService.stopAudio();
+      return;
+    }
+    
+    if (!botData.voiceId) return;
+    
+    try {
+      const previewText = `Hello, I'm ${botData.name}. ${botData.description}`;
+      await voiceService.speak(previewText, botData.voiceId);
+    } catch (error) {
+      console.error('Error playing voice preview:', error);
+    }
+  };
+  
   if (loading) {
     return (
       <AdminLayout title={isNewBot ? 'Add New Bot' : 'Edit Bot'}>
@@ -193,6 +251,7 @@ function AdminBotEdit() {
               <Tab value="basic" startDecorator={<Bot />}>Basic Info</Tab>
               <Tab value="appearance" startDecorator={<Image />}>Appearance</Tab>
               <Tab value="model" startDecorator={<Cpu />}>Model & AI</Tab>
+              <Tab value="voice" startDecorator={<Volume2 />}>Voice</Tab>
               <Tab value="prompt" startDecorator={<FileText />}>Prompt</Tab>
             </TabList>
             
@@ -307,6 +366,59 @@ function AdminBotEdit() {
                       Models with larger parameter sizes generally provide more advanced capabilities but may have higher latency or usage costs.
                     </Typography>
                   </Alert>
+                </Box>
+              </TabPanel>
+              
+              <TabPanel value="voice">
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <FormControl>
+                    <FormLabel>Default Voice</FormLabel>
+                    <Select
+                      name="voiceId"
+                      value={botData.voiceId || ''}
+                      onChange={(_, value) => handleSelectChange('voiceId', value)}
+                      placeholder="Select a default voice"
+                      endDecorator={
+                        botData.voiceId && (
+                          <IconButton
+                            size="sm"
+                            variant="soft"
+                            color={isPlaying ? "danger" : "primary"}
+                            onClick={handlePreviewVoice}
+                            sx={{ mr: 1 }}
+                          >
+                            {isPlaying ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                          </IconButton>
+                        )
+                      }
+                    >
+                      <Option value="">No default voice</Option>
+                      {voices.map(voice => (
+                        <Option key={voice.id} value={voice.id}>
+                          {voice.flag && `${voice.flag} `}{voice.name} - {voice.description}
+                        </Option>
+                      ))}
+                    </Select>
+                    <Typography level="body-sm" sx={{ mt: 1, color: 'text.tertiary' }}>
+                      Setting a default voice will automatically use this voice for the bot's responses.
+                      Users can still override this in their personal settings.
+                    </Typography>
+                  </FormControl>
+                  
+                  <Alert color="info" sx={{ mt: 2 }}>
+                    <Typography level="body-sm">
+                      Voice selection affects how the bot sounds when using text-to-speech.
+                      Choose a voice that matches the bot's personality and purpose.
+                    </Typography>
+                  </Alert>
+                  
+                  {voices.length === 0 && (
+                    <Alert color="warning">
+                      <Typography level="body-sm">
+                        No voices available. Please add voices in the Voice Management section.
+                      </Typography>
+                    </Alert>
+                  )}
                 </Box>
               </TabPanel>
               

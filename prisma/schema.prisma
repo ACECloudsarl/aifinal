@@ -36,19 +36,54 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  id            String       @id @default(auto()) @map("_id") @db.ObjectId
   name          String?
-  email         String?   @unique
+  email         String?      @unique
   emailVerified DateTime?
   password      String?
   image         String?
-  plan          String    @default("free")
-  role          String    @default("user")
+  plan          String       @default("free")
+  role          String       @default("user")
+  voiceSettings UserVoiceSettings?
   accounts      Account[]
   sessions      Session[]
   chats         Chat[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model UserVoiceSettings {
+  id                 String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId             String   @unique @db.ObjectId
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  autoTTS            Boolean  @default(false)
+  preferredVoiceId   String?  @db.ObjectId
+  preferredVoice     Voice?   @relation(fields: [preferredVoiceId], references: [id])
+  speakingRate       Float    @default(1.0)
+  speakingPitch      Float    @default(1.0)
+  inputDetectLanguage Boolean @default(true)
+  preferredLanguage  String   @default("en") // Default language code
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Voice {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  externalId  String?  // ID from external service like ElevenLabs
+  description String
+  gender      String?
+  accent      String?
+  age         String?
+  previewText String?
+  languages   String[] // Array of supported languages
+  preview     String?  // URL to audio preview
+  flag        String?  // emoji flag for UI
+  isActive    Boolean @default(true)
+  userSettings UserVoiceSettings[]
+  bots        Bot[]    // Bots that use this voice
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model VerificationToken {
@@ -65,10 +100,12 @@ model Bot {
   name        String
   description String
   avatar      String
-  model       String   @default("meta-llama/Llama-3.3-70B-Instruct-Turbo-Free") // New field
+  model       String   @default("meta-llama/Llama-3.3-70B-Instruct-Turbo-Free")
   category    String
   chats       Chat[]
-  prompt      String   @default("You are a helpful AI assistant.") // New field
+  prompt      String   @default("You are a helpful AI assistant.")
+  voiceId     String?  @db.ObjectId // Reference to Voice model
+  voice       Voice?   @relation(fields: [voiceId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -92,6 +129,6 @@ model Message {
   chatId    String   @db.ObjectId
   chat      Chat     @relation(fields: [chatId], references: [id])
   tokens    Int?
-  metadata  Json?    // Add this field for storing image data
+  metadata  Json?    // For storing image data and voice data
   createdAt DateTime @default(now())
 }
