@@ -9,23 +9,37 @@ import {
   Input,
   Textarea,
   Select,
-  Option,
   Card,
-  Sheet,
-  Typography,
-  CircularProgress,
-  Divider,
+  CardBody,
+  CardHeader,
+  CardFooter,
+  Text,
+  Spinner,
+  Alert,
+  AlertIcon,
+  AlertTitle,
   Tabs,
   TabList,
+  TabPanels,
   Tab,
   TabPanel,
-  Alert,
   Checkbox,
-  Chip,
+  Flex,
+  Tag,
+  TagLabel,
+  Wrap,
+  WrapItem,
+  HStack,
+  VStack,
   IconButton,
-} from '@mui/joy';
-import { Save, ArrowLeft, Volume2, VolumeX, User, Languages, Flag } from 'lucide-react';
-import AdminLayout from '@/adm_components/AdminLayout';
+  Tooltip,
+  useColorModeValue,
+  Divider,
+  useToast
+} from '@chakra-ui/react';
+import { ArrowBackIcon, CheckIcon } from '@chakra-ui/icons';
+import { Volume2, VolumeX, User, Languages, Flag } from 'lucide-react';
+import AdminLayout from '@/components/admin/AdminLayout';
 import withAuth from '../../../lib/withAuth';
 import voiceService from '@/lib/VoiceService';
 
@@ -82,14 +96,15 @@ const flagEmojis = {
 
 function AdminVoiceEdit() {
   const router = useRouter();
+  const toast = useToast();
   const { voiceId } = router.query;
   const isNewVoice = voiceId === 'new';
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [tabIndex, setTabIndex] = useState(0);
   
   const [voiceData, setVoiceData] = useState({
     name: '',
@@ -104,6 +119,12 @@ function AdminVoiceEdit() {
     flag: '',
     isActive: true,
   });
+  
+  // Colors
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const tagActiveBg = useColorModeValue('purple.100', 'purple.900');
+  const tagActiveColor = useColorModeValue('purple.700', 'purple.200');
   
   // Initialize voice service and load voice data
   useEffect(() => {
@@ -181,10 +202,15 @@ function AdminVoiceEdit() {
     }));
   };
   
-  const handleMultiSelectChange = (name, values) => {
+  const handleLanguageToggle = (langCode) => {
+    const currentLangs = voiceData.languages || [];
+    const newLangs = currentLangs.includes(langCode)
+      ? currentLangs.filter(l => l !== langCode)
+      : [...currentLangs, langCode];
+    
     setVoiceData(prev => ({
       ...prev,
-      [name]: values
+      languages: newLangs
     }));
   };
   
@@ -192,7 +218,6 @@ function AdminVoiceEdit() {
     e.preventDefault();
     setSaving(true);
     setError(null);
-    setSuccessMessage(null);
     
     try {
       const url = isNewVoice 
@@ -216,16 +241,20 @@ function AdminVoiceEdit() {
       
       const savedVoice = await response.json();
       
+      toast({
+        title: isNewVoice ? "Voice created" : "Voice updated",
+        description: isNewVoice ? "New voice has been created successfully" : "Voice has been updated successfully",
+        status: "success",
+        duration: 5000,
+        isClosable: true,
+      });
+      
       if (isNewVoice) {
         // Redirect to edit page for the newly created voice
         router.push(`/admin/voices/${savedVoice.id}`);
       } else {
         // Update the form with the latest data
         setVoiceData(savedVoice);
-        // Show success message
-        setSuccessMessage('Voice saved successfully');
-        // Automatically hide success message after 3 seconds
-        setTimeout(() => setSuccessMessage(null), 3000);
       }
     } catch (error) {
       console.error('Error saving voice:', error);
@@ -245,259 +274,325 @@ function AdminVoiceEdit() {
       await voiceService.speak(voiceData.previewText, voiceData.id);
     } catch (error) {
       console.error('Error playing voice preview:', error);
-      setError('Failed to play voice preview. Please try again.');
+      toast({
+        title: "Error",
+        description: "Failed to play voice preview",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
     }
   };
   
   if (loading) {
     return (
       <AdminLayout title={isNewVoice ? 'Add New Voice' : 'Edit Voice'}>
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-          <CircularProgress />
-        </Box>
+        <Flex justify="center" align="center" minH="300px">
+          <VStack spacing={4}>
+            <Spinner size="xl" thickness="4px" color="purple.500" />
+            <Text>Loading voice data...</Text>
+          </VStack>
+        </Flex>
       </AdminLayout>
     );
   }
   
   return (
     <AdminLayout title={isNewVoice ? 'Add New Voice' : `Edit Voice: ${voiceData.name}`}>
-      <Box sx={{ mb: 3 }}>
+      <Box mb={5}>
         <Button 
-          variant="outlined" 
-          color="neutral" 
-          startDecorator={<ArrowLeft size={18} />}
+          leftIcon={<ArrowBackIcon />} 
           onClick={() => router.push('/admin/voices')}
+          variant="outline"
         >
           Back to Voices List
         </Button>
       </Box>
       
       {error && (
-        <Alert color="danger" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
-      
-      {successMessage && (
-        <Alert color="success" sx={{ mb: 3 }}>
-          {successMessage}
+        <Alert status="error" mb={4} borderRadius="md">
+          <AlertIcon />
+          <AlertTitle>{error}</AlertTitle>
         </Alert>
       )}
       
       <form onSubmit={handleSubmit}>
-        <Box sx={{ mb: 3 }}>
-          <Tabs defaultValue="basic">
-            <TabList>
-              <Tab value="basic" startDecorator={<User />}>Basic Info</Tab>
-              <Tab value="languages" startDecorator={<Languages />}>Languages</Tab>
-              <Tab value="preview" startDecorator={<Volume2 />}>Preview</Tab>
-            </TabList>
-            
-            <Sheet
-              variant="outlined"
-              sx={{ 
-                mt: 2, 
-                p: 3, 
-                borderRadius: 'md',
-              }}
+        <Card variant="outline" bg={cardBg} mb={5}>
+          <CardBody p={0}>
+            <Tabs 
+              colorScheme="purple" 
+              size="md" 
+              index={tabIndex} 
+              onChange={setTabIndex}
             >
-              <TabPanel value="basic">
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <FormControl required>
-                    <FormLabel>Voice Name</FormLabel>
-                    <Input
-                      name="name"
-                      value={voiceData.name}
-                      onChange={handleChange}
-                      placeholder="Enter voice name"
-                    />
-                  </FormControl>
-                  
-                  <FormControl>
-                    <FormLabel>External ID (from ElevenLabs)</FormLabel>
-                    <Input
-                      name="externalId"
-                      value={voiceData.externalId || ''}
-                      onChange={handleChange}
-                      placeholder="Enter external voice ID (optional)"
-                    />
-                    <Typography level="body-xs" sx={{ mt: 0.5, color: 'text.tertiary' }}>
-                      Leave empty if this is a custom voice
-                    </Typography>
-                  </FormControl>
-                  
-                  <FormControl required>
-                    <FormLabel>Description</FormLabel>
-                    <Textarea
-                      name="description"
-                      value={voiceData.description}
-                      onChange={handleChange}
-                      placeholder="Enter voice description"
-                      minRows={2}
-                      maxRows={4}
-                    />
-                  </FormControl>
-                  
-                  <Box sx={{ display: 'flex', gap: 2 }}>
-                    <FormControl sx={{ flex: 1 }}>
-                      <FormLabel>Gender</FormLabel>
+              <TabList px={4}>
+                <Tab>
+                  <HStack spacing={2}>
+                    <User size={16} />
+                    <Text>Basic Info</Text>
+                  </HStack>
+                </Tab>
+                <Tab>
+                  <HStack spacing={2}>
+                    <Languages size={16} />
+                    <Text>Languages</Text>
+                  </HStack>
+                </Tab>
+                <Tab>
+                  <HStack spacing={2}>
+                    <Volume2 size={16} />
+                    <Text>Preview</Text>
+                  </HStack>
+                </Tab>
+              </TabList>
+              
+              <TabPanels p={0}>
+                {/* Basic Info Panel */}
+                <TabPanel p={5}>
+                  <VStack spacing={5} align="stretch">
+                    <FormControl isRequired>
+                      <FormLabel>Voice Name</FormLabel>
+                      <Input
+                        name="name"
+                        value={voiceData.name}
+                        onChange={handleChange}
+                        placeholder="Enter voice name"
+                      />
+                    </FormControl>
+                    
+                    <FormControl>
+                      <FormLabel>External ID (from ElevenLabs)</FormLabel>
+                      <Input
+                        name="externalId"
+                        value={voiceData.externalId || ''}
+                        onChange={handleChange}
+                        placeholder="Enter external voice ID (optional)"
+                      />
+                      <Text fontSize="sm" color="gray.500" mt={1}>
+                        Leave empty if this is a custom voice
+                      </Text>
+                    </FormControl>
+                    
+                    <FormControl isRequired>
+                      <FormLabel>Description</FormLabel>
+                      <Textarea
+                        name="description"
+                        value={voiceData.description}
+                        onChange={handleChange}
+                        placeholder="Enter voice description"
+                        minH="100px"
+                      />
+                    </FormControl>
+                    
+                    <Flex gap={4} wrap={{ base: "wrap", md: "nowrap" }}>
+                      <FormControl flex={{ base: '100%', md: '1' }}>
+                        <FormLabel>Gender</FormLabel>
+                        <Select
+                          name="gender"
+                          value={voiceData.gender || ''}
+                          onChange={handleChange}
+                          placeholder="Select gender"
+                        >
+                          {genderOptions.map(gender => (
+                            <option key={gender} value={gender}>
+                              {gender}
+                            </option>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      
+                      <FormControl flex={{ base: '100%', md: '1' }}>
+                        <FormLabel>Age Group</FormLabel>
+                        <Select
+                          name="age"
+                          value={voiceData.age || ''}
+                          onChange={handleChange}
+                          placeholder="Select age group"
+                        >
+                          {ageOptions.map(age => (
+                            <option key={age} value={age}>
+                              {age}
+                            </option>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Flex>
+                    
+                    <FormControl>
+                      <FormLabel>Accent</FormLabel>
                       <Select
-                        name="gender"
-                        value={voiceData.gender || ''}
-                        onChange={(_, value) => handleSelectChange('gender', value)}
-                        placeholder="Select gender"
+                        name="accent"
+                        value={voiceData.accent || ''}
+                        onChange={handleChange}
+                        placeholder="Select accent"
                       >
-                        {genderOptions.map(gender => (
-                          <Option key={gender} value={gender}>
-                            {gender}
-                          </Option>
+                        {accentOptions.map(accent => (
+                          <option key={accent} value={accent}>
+                            {accent}
+                          </option>
                         ))}
                       </Select>
                     </FormControl>
                     
-                    <FormControl sx={{ flex: 1 }}>
-                      <FormLabel>Age Group</FormLabel>
-                      <Select
-                        name="age"
-                        value={voiceData.age || ''}
-                        onChange={(_, value) => handleSelectChange('age', value)}
-                        placeholder="Select age group"
-                      >
-                        {ageOptions.map(age => (
-                          <Option key={age} value={age}>
-                            {age}
-                          </Option>
+                    <FormControl>
+                      <FormLabel>Flag Emoji</FormLabel>
+                      <Wrap spacing={2} mt={2} mb={3}>
+                        {Object.entries(flagEmojis).map(([code, emoji]) => (
+                          <WrapItem key={code}>
+                            <Tag
+                              size="lg"
+                              cursor="pointer"
+                              variant={voiceData.flag === emoji ? "solid" : "subtle"}
+                              colorScheme={voiceData.flag === emoji ? "purple" : "gray"}
+                              onClick={() => handleSelectChange('flag', emoji)}
+                              fontFamily="system-ui"
+                            >
+                              <TagLabel>{emoji} {code.toUpperCase()}</TagLabel>
+                            </Tag>
+                          </WrapItem>
                         ))}
-                      </Select>
+                      </Wrap>
+                      
+                      <HStack>
+                        <Text fontSize="sm" color="gray.500">Custom flag:</Text>
+                        <Input
+                          name="flag"
+                          value={voiceData.flag || ''}
+                          onChange={handleChange}
+                          placeholder="🎙️"
+                          maxW="100px"
+                          fontFamily="system-ui"
+                          fontSize="lg"
+                        />
+                      </HStack>
                     </FormControl>
-                  </Box>
-                  
-                  <FormControl>
-                    <FormLabel>Accent</FormLabel>
-                    <Select
-                      name="accent"
-                      value={voiceData.accent || ''}
-                      onChange={(_, value) => handleSelectChange('accent', value)}
-                      placeholder="Select accent"
-                    >
-                      {accentOptions.map(accent => (
-                        <Option key={accent} value={accent}>
-                          {accent}
-                        </Option>
+                    
+                    <FormControl display="flex" alignItems="center">
+                      <Checkbox
+                        id="isActive"
+                        name="isActive"
+                        isChecked={voiceData.isActive}
+                        onChange={handleCheckboxChange}
+                        colorScheme="green"
+                      />
+                      <FormLabel htmlFor="isActive" mb="0" ml={2}>
+                        Voice Active
+                      </FormLabel>
+                    </FormControl>
+                  </VStack>
+                </TabPanel>
+                
+                {/* Languages Panel */}
+                <TabPanel p={5}>
+                  <VStack spacing={4} align="stretch">
+                    <Text>Select languages supported by this voice:</Text>
+                    
+                    <Wrap spacing={2}>
+                      {languageOptions.map(lang => (
+                        <WrapItem key={lang.code}>
+                          <Tag
+                            size="lg"
+                            cursor="pointer"
+                            fontWeight="medium"
+                            bg={voiceData.languages?.includes(lang.code) ? tagActiveBg : undefined}
+                            color={voiceData.languages?.includes(lang.code) ? tagActiveColor : undefined}
+                            variant={voiceData.languages?.includes(lang.code) ? "solid" : "subtle"}
+                            colorScheme={voiceData.languages?.includes(lang.code) ? "purple" : "gray"}
+                            onClick={() => handleLanguageToggle(lang.code)}
+                          >
+                            <TagLabel>
+                              {flagEmojis[lang.code] && `${flagEmojis[lang.code]} `}
+                              {lang.name}
+                              {voiceData.languages?.includes(lang.code) && (
+                                <Box as="span" ml={1}>
+                                  <CheckIcon boxSize={3} />
+                                </Box>
+                              )}
+                            </TagLabel>
+                          </Tag>
+                        </WrapItem>
                       ))}
-                    </Select>
-                  </FormControl>
-                  
-                  <FormControl>
-                    <FormLabel>Flag Emoji</FormLabel>
-                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-                      {Object.entries(flagEmojis).map(([code, emoji]) => (
-                        <Chip
-                          key={code}
-                          variant={voiceData.flag === emoji ? "solid" : "soft"}
-                          color={voiceData.flag === emoji ? "primary" : "neutral"}
-                          onClick={() => handleSelectChange('flag', emoji)}
-                          sx={{ cursor: 'pointer', fontSize: '1.2rem' }}
-                        >
-                          {emoji} {code.toUpperCase()}
-                        </Chip>
-                      ))}
-                    </Box>
-                    <Typography level="body-xs" sx={{ mt: 1, color: 'text.tertiary' }}>
-                      Or enter a custom flag emoji:
-                    </Typography>
-                    <Input
-                      name="flag"
-                      value={voiceData.flag || ''}
-                      onChange={handleChange}
-                      placeholder="🎙️"
-                      sx={{ mt: 1, maxWidth: 100 }}
-                    />
-                  </FormControl>
-                  
-                  <FormControl orientation="horizontal">
-                    <Checkbox
-                      name="isActive"
-                      checked={voiceData.isActive}
-                      onChange={handleCheckboxChange}
-                    />
-                    <FormLabel>Active</FormLabel>
-                  </FormControl>
-                </Box>
-              </TabPanel>
-              
-              <TabPanel value="languages">
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Typography level="body-sm" sx={{ mb: 2 }}>
-                    Select languages supported by this voice:
-                  </Typography>
-                  
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {languageOptions.map(lang => (
-                      <Chip
-                        key={lang.code}
-                        variant={voiceData.languages?.includes(lang.code) ? "solid" : "soft"}
-                        color={voiceData.languages?.includes(lang.code) ? "primary" : "neutral"}
-                        onClick={() => {
-                          const currentLangs = voiceData.languages || [];
-                          const newLangs = currentLangs.includes(lang.code)
-                            ? currentLangs.filter(l => l !== lang.code)
-                            : [...currentLangs, lang.code];
-                          handleMultiSelectChange('languages', newLangs);
-                        }}
-                        sx={{ cursor: 'pointer' }}
-                      >
-                        {flagEmojis[lang.code] && `${flagEmojis[lang.code]} `}{lang.name}
-                      </Chip>
-                    ))}
-                  </Box>
-                </Box>
-              </TabPanel>
-              
-              <TabPanel value="preview">
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <FormControl>
-                    <FormLabel>Preview Text</FormLabel>
-                    <Textarea
-                      name="previewText"
-                      value={voiceData.previewText}
-                      onChange={handleChange}
-                      placeholder="Enter text to be used for previewing this voice"
-                      minRows={3}
-                      maxRows={6}
-                    />
-                  </FormControl>
-                  
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    </Wrap>
+                    
+                    {voiceData.languages?.length > 0 && (
+                      <Box mt={4}>
+                        <Text fontWeight="medium" mb={2}>Selected Languages:</Text>
+                        <Wrap>
+                          {voiceData.languages.map(code => {
+                            const lang = languageOptions.find(l => l.code === code);
+                            return (
+                              <WrapItem key={code}>
+                                <Tag 
+                                  colorScheme="purple" 
+                                  variant="solid"
+                                  size="md"
+                                >
+                                  {flagEmojis[code] && `${flagEmojis[code]} `}
+                                  {lang ? lang.name : code.toUpperCase()}
+                                </Tag>
+                              </WrapItem>
+                            );
+                          })}
+                        </Wrap>
+                      </Box>
+                    )}
+                    
+                    {voiceData.languages?.length === 0 && (
+                      <Alert status="info" mt={4}>
+                        <AlertIcon />
+                        <Text>No languages selected. This voice will be available for all languages.</Text>
+                      </Alert>
+                    )}
+                  </VStack>
+                </TabPanel>
+                
+                {/* Preview Panel */}
+                <TabPanel p={5}>
+                  <VStack spacing={4} align="stretch">
+                    <FormControl>
+                      <FormLabel>Preview Text</FormLabel>
+                      <Textarea
+                        name="previewText"
+                        value={voiceData.previewText || ''}
+                        onChange={handleChange}
+                        placeholder="Enter text to be used for previewing this voice"
+                        minH="150px"
+                      />
+                    </FormControl>
+                    
                     <Button
-                      variant="soft"
-                      color={isPlaying ? "danger" : "primary"}
-                      startDecorator={isPlaying ? <VolumeX /> : <Volume2 />}
+                      leftIcon={isPlaying ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                      colorScheme={isPlaying ? "red" : "purple"}
                       onClick={handlePreviewVoice}
-                      disabled={!voiceData.previewText}
+                      isDisabled={!voiceData.previewText}
+                      alignSelf="flex-end"
                     >
-                      {isPlaying ? 'Stop Preview' : 'Play Preview'}
+                      {isPlaying ? "Stop Preview" : "Play Preview"}
                     </Button>
-                  </Box>
-                </Box>
-              </TabPanel>
-            </Sheet>
-          </Tabs>
-        </Box>
+                  </VStack>
+                </TabPanel>
+              </TabPanels>
+            </Tabs>
+          </CardBody>
+        </Card>
         
-        <Divider sx={{ my: 3 }} />
-        
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Flex justify="space-between" mt={6}>
+          <Button 
+            variant="outline" 
+            onClick={() => router.push('/admin/voices')}
+          >
+            Cancel
+          </Button>
+          
           <Button
             type="submit"
-            color="primary"
-            size="lg"
-            startDecorator={<Save size={18} />}
-            loading={saving}
+            colorScheme="purple"
+            isLoading={saving}
+            loadingText="Saving..."
           >
-            {saving ? 'Saving...' : isNewVoice ? 'Create Voice' : 'Save Changes'}
+            {isNewVoice ? "Create Voice" : "Save Changes"}
           </Button>
-        </Box>
+        </Flex>
       </form>
     </AdminLayout>
   );

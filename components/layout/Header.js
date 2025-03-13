@@ -1,5 +1,5 @@
 // components/layout/Header.js
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Box,
   Flex,
@@ -23,6 +23,12 @@ import {
   HStack,
   Text,
   Tooltip,
+  Kbd,
+  useDisclosure,
+  Collapse,
+  useOutsideClick,
+  Portal,
+  VStack,
 } from '@chakra-ui/react';
 import NextLink from 'next/link';
 import {
@@ -44,12 +50,20 @@ import {
 } from 'react-icons/fi';
 import { useRouter } from 'next/router';
 
-const Header = ({ setMobileMenuOpen, currentView }) => {
+const Header = ({ onMobileMenuOpen, currentView, title }) => {
   const { colorMode, toggleColorMode } = useColorMode();
   const [searchQuery, setSearchQuery] = useState('');
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const isMobile = useBreakpointValue({ base: true, md: false });
   const router = useRouter();
+  const searchRef = useRef();
+  
+  // Command palette (search) state
+  const { isOpen, onToggle, onClose } = useDisclosure();
+  useOutsideClick({
+    ref: searchRef,
+    handler: onClose,
+  });
   
   // Color mode values
   const bgColor = useColorModeValue('white', 'gray.800');
@@ -66,7 +80,7 @@ const Header = ({ setMobileMenuOpen, currentView }) => {
       'settings': 'Settings'
     };
     
-    return titles[currentView] || 'Dashboard';
+    return titles[currentView] || title || 'Dashboard';
   };
   
   // Page icons based on current view
@@ -106,8 +120,30 @@ const Header = ({ setMobileMenuOpen, currentView }) => {
       if (isMobile) {
         setShowMobileSearch(false);
       }
+      onClose();
     }
   };
+  
+  // Open search with keyboard shortcut
+  const handleKeyDown = (e) => {
+    // Handle Command/Ctrl + K
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      onToggle();
+    }
+    // Close on Escape
+    if (e.key === 'Escape' && isOpen) {
+      onClose();
+    }
+  };
+  
+  // Add keyboard listeners
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
   
   return (
     <Box
@@ -131,7 +167,7 @@ const Header = ({ setMobileMenuOpen, currentView }) => {
             icon={<FiMenu />}
             variant="ghost"
             display={{ base: 'flex', md: 'none' }}
-            onClick={() => setMobileMenuOpen(true)}
+            onClick={onMobileMenuOpen}
           />
           
           {(!showMobileSearch || !isMobile) && (
@@ -142,7 +178,7 @@ const Header = ({ setMobileMenuOpen, currentView }) => {
                 alignItems="center"
                 gap={2}
               >
-                {getPageIcon && <Box as={getPageIcon()} />}
+                {getPageIcon() && <Box as={getPageIcon()} />}
                 {getPageTitle()}
               </Heading>
               
@@ -315,14 +351,85 @@ const Header = ({ setMobileMenuOpen, currentView }) => {
               />
             </MenuButton>
             <MenuList zIndex={20}>
-              <MenuItem icon={<FiUser />}>Profile</MenuItem>
-              <MenuItem icon={<FiSettings />}>Settings</MenuItem>
+              <MenuItem icon={<FiUser fontSize="1.2em" />}>Profile</MenuItem>
+              <MenuItem icon={<FiSettings fontSize="1.2em" />}>Settings</MenuItem>
               <MenuDivider />
-              <MenuItem icon={<FiLogOut />} color="red.500">Logout</MenuItem>
+              <MenuItem icon={<FiLogOut fontSize="1.2em" />} color="red.500">Logout</MenuItem>
             </MenuList>
           </Menu>
         </HStack>
       </Flex>
+      
+      {/* Command palette / Global search */}
+      <Portal>
+        {isOpen && (
+          <Flex 
+            position="fixed" 
+            top="0" 
+            left="0" 
+            right="0" 
+            bottom="0" 
+            bg="blackAlpha.600" 
+            zIndex={1000}
+            align="flex-start"
+            justify="center"
+            p={4}
+            onClick={onClose}
+          >
+            <Box 
+              ref={searchRef}
+              bg={bgColor} 
+              borderRadius="lg" 
+              boxShadow="lg" 
+              w="full" 
+              maxW="600px"
+              mt={20}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Box as="form" onSubmit={handleSearchSubmit} p={4}>
+                <InputGroup size="lg">
+                  <InputLeftElement pointerEvents="none">
+                    <FiSearch color="gray.500" />
+                  </InputLeftElement>
+                  <Input 
+                    placeholder="Search for chats, bots, or settings..."
+                    autoFocus
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    borderRadius="md"
+                    variant="filled"
+                  />
+                  <InputRightElement>
+                    <Box mr={1}>
+                      <Kbd>Esc</Kbd>
+                    </Box>
+                  </InputRightElement>
+                </InputGroup>
+              </Box>
+              
+              {searchQuery && (
+                <VStack align="stretch" p={4} pt={0} spacing={2} maxH="300px" overflowY="auto">
+                  <Text fontSize="xs" fontWeight="bold" textTransform="uppercase" color="gray.500" my={2}>
+                    Quick Actions
+                  </Text>
+                  
+                  <Button variant="ghost" justifyContent="flex-start" leftIcon={<FiPlus />}>
+                    Create a new chat
+                  </Button>
+                  
+                  <Button variant="ghost" justifyContent="flex-start" leftIcon={<FiSearch />}>
+                    Explore available bots
+                  </Button>
+                  
+                  <Button variant="ghost" justifyContent="flex-start" leftIcon={<FiSettings />}>
+                    Open settings
+                  </Button>
+                </VStack>
+              )}
+            </Box>
+          </Flex>
+        )}
+      </Portal>
     </Box>
   );
 };

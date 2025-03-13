@@ -28,11 +28,11 @@ import {
   DrawerOverlay,
   DrawerContent,
   DrawerCloseButton,
-  useDisclosure,
   VStack,
   HStack,
-  Collapse,
   Heading,
+  Collapse,
+  Skeleton,
 } from '@chakra-ui/react';
 import {
   FiHome,
@@ -55,38 +55,27 @@ import {
   FiClock,
 } from 'react-icons/fi';
 
-const Sidebar = ({ currentView, currentChat, chatList = [] }) => {
+const Sidebar = ({ 
+  currentView, 
+  currentChat, 
+  chatList = [],
+  isOpen,
+  onClose,
+  isCollapsed,
+  toggleSidebar
+}) => {
   const { colorMode, toggleColorMode } = useColorMode();
   const router = useRouter();
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [isLoading, setIsLoading] = useState(true);
   
-  // Sidebar collapse state (for desktop)
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  
+  // Load data simulation
   useEffect(() => {
-    // Load collapse state from localStorage
-    const savedState = localStorage.getItem('sidebarCollapsed');
-    if (savedState) {
-      setIsCollapsed(JSON.parse(savedState));
-    }
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
     
-    // Handle collapse state on mobile
-    const handleResize = () => {
-      if (window.innerWidth < 768) {
-        setIsCollapsed(true);
-      }
-    };
-    
-    window.addEventListener('resize', handleResize);
-    handleResize(); // Initial check
-    
-    return () => window.removeEventListener('resize', handleResize);
+    return () => clearTimeout(timer);
   }, []);
-  
-  // Save collapse state when it changes
-  useEffect(() => {
-    localStorage.setItem('sidebarCollapsed', JSON.stringify(isCollapsed));
-  }, [isCollapsed]);
   
   // Color mode values
   const bgColor = useColorModeValue('white', 'gray.800');
@@ -125,7 +114,7 @@ const Sidebar = ({ currentView, currentChat, chatList = [] }) => {
         {!isCollapsed && (
           <Flex align="center" gap={2}>
             <Box
-              bg={primaryGradient}
+              bgGradient={primaryGradient}
               w="32px"
               h="32px"
               borderRadius="md"
@@ -149,7 +138,7 @@ const Sidebar = ({ currentView, currentChat, chatList = [] }) => {
 
         {isCollapsed && (
           <Box
-            bg={primaryGradient}
+            bgGradient={primaryGradient}
             w="32px"
             h="32px"
             borderRadius="md"
@@ -168,7 +157,7 @@ const Sidebar = ({ currentView, currentChat, chatList = [] }) => {
             icon={isCollapsed ? <FiChevronRight /> : <FiChevronLeft />}
             variant="ghost"
             size="sm"
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={toggleSidebar}
             display={{ base: 'none', md: 'flex' }}
             position={isCollapsed ? 'static' : 'absolute'}
             right={isCollapsed ? 'auto' : -4}
@@ -252,24 +241,33 @@ const Sidebar = ({ currentView, currentChat, chatList = [] }) => {
       </VStack>
 
       {/* Recent Chats Section */}
-      {chatList.length > 0 && (
-        <Box mt={4}>
-          <Divider mb={4} />
+      <Box mt={4}>
+        <Divider mb={4} />
+        
+        <Box px={isCollapsed ? 0 : 2} mb={2}>
+          {!isCollapsed && (
+            <Flex align="center" justify="space-between" px={2} mb={2}>
+              <Text fontSize="xs" textTransform="uppercase" color={mutedColor} fontWeight="medium">
+                Recent Chats
+              </Text>
+              <Badge colorScheme="brand" variant="subtle" fontSize="xs">
+                {chatList.length}
+              </Badge>
+            </Flex>
+          )}
           
-          <Box px={isCollapsed ? 0 : 2} mb={2}>
-            {!isCollapsed && (
-              <Flex align="center" justify="space-between" px={2} mb={2}>
-                <Text fontSize="xs" textTransform="uppercase" color={mutedColor} fontWeight="medium">
-                  Recent Chats
-                </Text>
-                <Badge colorScheme="brand" variant="subtle" fontSize="xs">
-                  {chatList.length}
-                </Badge>
-              </Flex>
-            )}
-            
-            <VStack align="stretch" spacing={1} maxH={isCollapsed ? 'calc(100vh - 300px)' : 'calc(100vh - 350px)'} overflowY="auto" pr={2}>
-              {chatList.slice(0, 10).map((chat) => (
+          <VStack align="stretch" spacing={1} maxH={isCollapsed ? 'calc(100vh - 300px)' : 'calc(100vh - 350px)'} overflowY="auto" pr={2}>
+            {isLoading ? (
+              // Loading skeletons for recent chats
+              Array(3).fill(0).map((_, i) => (
+                <Skeleton key={i} height="40px" startColor={useColorModeValue('gray.100', 'gray.700')} endColor={useColorModeValue('gray.300', 'gray.600')} my={1} borderRadius="md" />
+              ))
+            ) : chatList.length === 0 ? (
+              <Box p={3} textAlign="center">
+                <Text fontSize="sm" color={mutedColor}>No recent chats</Text>
+              </Box>
+            ) : (
+              chatList.slice(0, 10).map((chat) => (
                 <Tooltip
                   key={chat.id || chat._id}
                   label={isCollapsed ? chat.title : ''}
@@ -313,11 +311,11 @@ const Sidebar = ({ currentView, currentChat, chatList = [] }) => {
                     </NextLink>
                   </Box>
                 </Tooltip>
-              ))}
-            </VStack>
-          </Box>
+              ))
+            )}
+          </VStack>
         </Box>
-      )}
+      </Box>
 
       {/* Featured Bots - only when not collapsed */}
       {!isCollapsed && (
@@ -408,55 +406,54 @@ const Sidebar = ({ currentView, currentChat, chatList = [] }) => {
             </Box>
             
             {/* User menu */}
-            <Flex align="center" justify="space-between">
-              <Menu placement="top">
-                <MenuButton
-                  as={Button}
-                  variant="ghost"
-                  px={2}
-                  py={1}
-                  borderRadius="md"
-                  w="full"
-                  justifyContent="flex-start"
-                >
-                  <Flex align="center" w="full">
-                    <Avatar 
-                      size="sm" 
-                      name="User Name" 
-                      src="/images/avatar.jpg" 
-                      mr={2}
-                      borderWidth={2}
-                      borderColor={bgColor}
-                    />
-                    <Box textAlign="start" flex="1" isTruncated>
-                      <Text fontSize="sm" fontWeight="medium">
-                        User Name
-                      </Text>
-                      <Text fontSize="xs" color={mutedColor} isTruncated>
-                        user@example.com
-                      </Text>
-                    </Box>
-                  </Flex>
-                </MenuButton>
-                <MenuList zIndex={10}>
-                  <MenuItem icon={<FiUser />}>Profile</MenuItem>
-                  <MenuItem icon={<FiSettings />}>Settings</MenuItem>
-                  <MenuItem icon={<FiBell />}>Notifications</MenuItem>
-                  <MenuDivider />
-                  <MenuItem icon={<FiLogOut />} color="red.500">Logout</MenuItem>
-                </MenuList>
-              </Menu>
-              
-              <IconButton
-                icon={colorMode === 'light' ? <FiMoon /> : <FiSun />}
+            <Menu placement="top">
+              <MenuButton
+                as={Button}
                 variant="ghost"
-                size="sm"
-                ml={2}
-                aria-label="Toggle color mode"
-                onClick={toggleColorMode}
-                color={colorMode === 'light' ? 'gray.700' : 'yellow.300'}
-              />
-            </Flex>
+                px={2}
+                py={1}
+                borderRadius="md"
+                w="full"
+                justifyContent="flex-start"
+              >
+                <Flex align="center" w="full">
+                  <Avatar 
+                    size="sm" 
+                    name="User Name" 
+                    src="/images/avatar.jpg" 
+                    mr={2}
+                    borderWidth={2}
+                    borderColor={bgColor}
+                  />
+                  <Box textAlign="start" flex="1" isTruncated>
+                    <Text fontSize="sm" fontWeight="medium">
+                      User Name
+                    </Text>
+                    <Text fontSize="xs" color={mutedColor} isTruncated>
+                      user@example.com
+                    </Text>
+                  </Box>
+                </Flex>
+              </MenuButton>
+              <MenuList zIndex={10}>
+                <MenuItem icon={<FiUser fontSize="1.2em" />}>Profile</MenuItem>
+                <MenuItem icon={<FiSettings fontSize="1.2em" />}>Settings</MenuItem>
+                <MenuItem icon={<FiBell fontSize="1.2em" />}>Notifications</MenuItem>
+                <MenuDivider />
+                <MenuItem icon={<FiLogOut fontSize="1.2em" />} color="red.500">Logout</MenuItem>
+              </MenuList>
+            </Menu>
+            
+            <IconButton
+              icon={colorMode === 'light' ? <FiMoon /> : <FiSun />}
+              variant="ghost"
+              size="sm"
+              aria-label="Toggle color mode"
+              onClick={toggleColorMode}
+              color={colorMode === 'light' ? 'gray.700' : 'yellow.300'}
+              alignSelf="flex-end"
+              mt={2}
+            />
           </>
         ) : (
           <VStack spacing={3}>
@@ -485,10 +482,10 @@ const Sidebar = ({ currentView, currentChat, chatList = [] }) => {
                     />
                   </MenuButton>
                   <MenuList zIndex={10}>
-                    <MenuItem icon={<FiUser />}>Profile</MenuItem>
-                    <MenuItem icon={<FiSettings />}>Settings</MenuItem>
+                    <MenuItem icon={<FiUser fontSize="1.2em" />}>Profile</MenuItem>
+                    <MenuItem icon={<FiSettings fontSize="1.2em" />}>Settings</MenuItem>
                     <MenuDivider />
-                    <MenuItem icon={<FiLogOut />} color="red.500">Logout</MenuItem>
+                    <MenuItem icon={<FiLogOut fontSize="1.2em" />} color="red.500">Logout</MenuItem>
                   </MenuList>
                 </Menu>
               </Box>
@@ -554,7 +551,7 @@ const Sidebar = ({ currentView, currentChat, chatList = [] }) => {
         borderRight="1px solid"
         borderColor={borderColor}
         transition="width 0.3s ease"
-        zIndex={10}
+        zIndex={20}
         display={{ base: 'none', md: 'block' }}
         overflowY="auto"
         css={{
@@ -573,19 +570,6 @@ const Sidebar = ({ currentView, currentChat, chatList = [] }) => {
         <SidebarContent />
       </Box>
 
-      {/* Mobile trigger button */}
-      <IconButton
-        aria-label="Open menu"
-        icon={<FiMenu />}
-        display={{ base: 'flex', md: 'none' }}
-        position="fixed"
-        top={4}
-        left={4}
-        size="md"
-        zIndex={20}
-        onClick={onOpen}
-      />
-
       {/* Mobile drawer */}
       <Drawer isOpen={isOpen} placement="left" onClose={onClose} size="full">
         <DrawerOverlay />
@@ -597,14 +581,6 @@ const Sidebar = ({ currentView, currentChat, chatList = [] }) => {
           </DrawerBody>
         </DrawerContent>
       </Drawer>
-
-      {/* Spacer to push content to the right */}
-      <Box
-        display={{ base: 'none', md: 'block' }}
-        w={isCollapsed ? '72px' : '280px'}
-        flexShrink={0}
-        transition="width 0.3s ease"
-      />
     </>
   );
 };
