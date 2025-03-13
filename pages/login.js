@@ -1,22 +1,28 @@
-// pages/login.js (updated)
+// pages/login.js
 import React, { useState, useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import Link from "next/link";
+import NextLink from "next/link";
 import {
   Box,
   Button,
-  Card,
-  CardContent,
-  Divider,
+  Container,
   FormControl,
   FormLabel,
   Input,
-  Stack,
-  Typography,
+  VStack,
+  Text,
   Alert,
-} from "@mui/joy";
-import { Mail, Key, AlertCircle } from "lucide-react";
+  AlertIcon,
+  AlertDescription,
+  useColorModeValue,
+  InputRightElement,
+  InputGroup,
+  IconButton,
+  Link,
+  Divider,
+} from "@chakra-ui/react";
+import { EmailIcon, LockIcon, ViewIcon, ViewOffIcon } from "@chakra-ui/icons";
 
 export default function Login() {
   const router = useRouter();
@@ -25,7 +31,16 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   
+  // Background and card styling
+  const bgGradient = useColorModeValue(
+    "radial-gradient(circle at 50% 50%, rgba(188, 113, 221, 0.1) 0%, rgba(255, 255, 255, 0) 100%)",
+    "radial-gradient(circle at 50% 50%, rgba(188, 113, 221, 0.2) 0%, rgba(0, 0, 0, 0.5) 100%)"
+  );
+  const cardBg = useColorModeValue("white", "gray.800");
+  const cardShadow = useColorModeValue("lg", "dark-lg");
+
   // Get error from URL if present
   useEffect(() => {
     if (router.query.error) {
@@ -52,10 +67,10 @@ export default function Login() {
         callbackUrl: "/explore",
       });
 
-      if (result.error) {
+      if (result?.error) {
         setError(result.error || "Invalid email or password");
       } else {
-        router.push(result.url || "/explore");
+        router.push(result?.url || "/explore");
       }
     } catch (error) {
       setError("An unexpected error occurred. Please try again.");
@@ -70,97 +85,121 @@ export default function Login() {
 
   return (
     <Box
-      sx={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        minHeight: "100vh",
-        p: 2,
-        backgroundImage:
-          "radial-gradient(circle at 50% 50%, rgba(188, 113, 221, 0.1) 0%, rgba(255, 255, 255, 0) 100%)",
-      }}
+      display="flex"
+      justifyContent="center"
+      alignItems="center"
+      minHeight="100vh"
+      p={2}
+      background={bgGradient}
     >
-      <Card
-        sx={{
-          maxWidth: 400,
-          width: "100%",
-          boxShadow: "lg",
-        }}
-      >
-        <CardContent>
-          <Typography level="h4" textAlign="center" sx={{ mb: 3 }}>
+      <Container maxW="md">
+        <Box
+          bg={cardBg}
+          boxShadow={cardShadow}
+          borderRadius="xl"
+          p={8}
+          width="full"
+        >
+          <Text 
+            fontSize="2xl" 
+            fontWeight="bold" 
+            textAlign="center" 
+            mb={6}
+          >
             Welcome Back
-          </Typography>
+          </Text>
 
           {error && (
-            <Alert
-              color="danger"
-              variant="soft"
-              startDecorator={<AlertCircle />}
-              sx={{ mb: 3 }}
+            <Alert 
+              status="error" 
+              variant="left-accent"
+              mb={4}
+              borderRadius="md"
             >
-              {error}
+              <AlertIcon />
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
           <form onSubmit={handleSubmit}>
-            <Stack spacing={2}>
+            <VStack spacing={4}>
               <FormControl>
                 <FormLabel>Email</FormLabel>
-                <Input
-                  startDecorator={<Mail size={16} />}
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  placeholder="your@email.com"
-                />
+                <InputGroup>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    required
+                    pr={10}
+                  />
+                  <InputRightElement pointerEvents="none">
+                    <EmailIcon color="gray.500" />
+                  </InputRightElement>
+                </InputGroup>
               </FormControl>
 
               <FormControl>
                 <FormLabel>Password</FormLabel>
-                <Input
-                  startDecorator={<Key size={16} />}
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                />
+                <InputGroup>
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    pr={10}
+                  />
+                  <InputRightElement>
+                    <IconButton
+                      variant="ghost"
+                      size="sm"
+                      icon={showPassword ? <ViewOffIcon /> : <ViewIcon />}
+                      onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      h="full"
+                      w="full"
+                    />
+                  </InputRightElement>
+                </InputGroup>
               </FormControl>
 
-              <Button type="submit" loading={isLoading}>
+              <Button 
+                type="submit" 
+                colorScheme="purple" 
+                width="full"
+                isLoading={isLoading}
+              >
                 Sign In
               </Button>
-            </Stack>
+            </VStack>
           </form>
 
-          <Divider sx={{ my: 3 }}>or</Divider>
+          <Divider my={6} />
 
           <Button
-            variant="outlined"
-            color="neutral"
-            fullWidth
+            variant="outline"
+            width="full"
             onClick={handleGoogleSignIn}
           >
             Continue with Google
           </Button>
 
-          <Box sx={{ mt: 3, textAlign: "center" }}>
-            <Typography level="body-sm">
-              Don't have an account?{" "}
-              <Link href="/register" style={{ textDecoration: "none" }}>
-                <Typography
-                  level="body-sm"
-                  sx={{ color: "primary.500", fontWeight: "bold" }}
-                >
-                  Sign Up
-                </Typography>
-              </Link>
-            </Typography>
-          </Box>
-        </CardContent>
-      </Card>
+          <Text mt={4} textAlign="center" fontSize="sm">
+            Don't have an account?{" "}
+            <Link 
+              as={NextLink} 
+              href="/register" 
+              color="purple.500" 
+              fontWeight="bold"
+              _hover={{ textDecoration: "underline" }}
+            >
+              Sign Up
+            </Link>
+          </Text>
+        </Box>
+      </Container>
     </Box>
   );
 }

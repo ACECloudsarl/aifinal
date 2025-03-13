@@ -39,7 +39,7 @@ import {
 } from '@chakra-ui/react';
 import { ArrowBackIcon, CheckIcon } from '@chakra-ui/icons';
 import { Volume2, VolumeX, User, Languages, Flag } from 'lucide-react';
-import AdminLayout from '@/components/admin/AdminLayout';
+import AdminLayout from '@/adm_components/AdminLayout';
 import withAuth from '../../../lib/withAuth';
 import voiceService from '@/lib/VoiceService';
 

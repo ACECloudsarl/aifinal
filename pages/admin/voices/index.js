@@ -36,8 +36,8 @@ import {
   DeleteIcon 
 } from '@chakra-ui/icons';
 import { Volume2, VolumeX } from 'lucide-react';
-import AdminLayout from '@/components/admin/AdminLayout';
-import SeedVoicesButton from '@/components/admin/SeedVoicesButton';
+import AdminLayout from '@/adm_components/AdminLayout';
+import SeedVoicesButton from '@/adm_components/SeedVoicesButton';
 import withAuth from '../../../lib/withAuth';
 import voiceService from '@/lib/VoiceService';
 

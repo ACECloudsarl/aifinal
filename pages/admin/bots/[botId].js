@@ -44,7 +44,7 @@ import {
   Volume2, 
   VolumeX
 } from 'lucide-react';
-import AdminLayout from '@/components/admin/AdminLayout';
+import AdminLayout from '@/adm_components/AdminLayout';
 import withAuth from '../../../lib/withAuth';
 import voiceService from '@/lib/VoiceService';
 
@@ -440,11 +440,62 @@ function AdminBotEdit() {
                     <Alert status="info" borderRadius="md">
                       <AlertIcon />
                       <Box>
-                        <AlertTitle mb={1}>Model Information</AlertTitle>
+                        <AlertTitle mb={1}>Model Selection</AlertTitle>
                         <AlertDescription fontSize="sm">
-                        Voice selection affects how the bot sounds when using text-to-speech.
-                        Choose a voice that matches the bot's personality and purpose.
-                      </AlertDescription>
+                          The selected model will be used for all conversations with this bot.
+                          Models with larger parameter sizes generally provide more advanced capabilities but may have higher latency or usage costs.
+                        </AlertDescription>
+                      </Box>
+                    </Alert>
+                  </VStack>
+                </TabPanel>
+                
+                {/* Voice Panel */}
+                <TabPanel p={5}>
+                  <VStack spacing={5} align="stretch">
+                    <FormControl>
+                      <FormLabel>Default Voice</FormLabel>
+                      <Select
+                        name="voiceId"
+                        value={botData.voiceId || ''}
+                        onChange={(e) => handleSelectChange('voiceId', e.target.value)}
+                        placeholder="Select a default voice"
+                      >
+                        <option value="">No default voice</option>
+                        {voices.map(voice => (<option key={voice.id} value={voice.id}>
+                            {voice.flag && `${voice.flag} `}{voice.name} - {voice.description}
+                          </option>
+                        ))}
+                      </Select>
+                      
+                      {botData.voiceId && (
+                        <HStack mt={3} spacing={3}>
+                          <Button
+                            leftIcon={isPlaying ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                            size="sm"
+                            colorScheme={isPlaying ? "red" : "purple"}
+                            onClick={handlePreviewVoice}
+                          >
+                            {isPlaying ? "Stop Preview" : "Preview Voice"}
+                          </Button>
+                        </HStack>
+                      )}
+                      
+                      <Text fontSize="sm" color="gray.500" mt={2}>
+                        Setting a default voice will automatically use this voice for the bot's responses.
+                        Users can still override this in their personal settings.
+                      </Text>
+                    </FormControl>
+                    
+                    <Alert status="info" borderRadius="md">
+                      <AlertIcon />
+                      <Box>
+                        <AlertTitle mb={1}>Voice Selection</AlertTitle>
+                        <AlertDescription fontSize="sm">
+                          Voice selection affects how the bot sounds when using text-to-speech.
+                          Choose a voice that matches the bot's personality and purpose.
+                        </AlertDescription>
+                      </Box>
                     </Alert>
                     
                     {voices.length === 0 && (
@@ -514,54 +565,4 @@ function AdminBotEdit() {
   );
 }
 
-export default withAuth(AdminBotEdit);  The selected model will be used for all conversations with this bot.
-                          Models with larger parameter sizes generally provide more advanced capabilities but may have higher latency or usage costs.
-                        </AlertDescription>
-                      </Box>
-                    </Alert>
-                  </VStack>
-                </TabPanel>
-                
-                {/* Voice Panel */}
-                <TabPanel p={5}>
-                  <VStack spacing={5} align="stretch">
-                    <FormControl>
-                      <FormLabel>Default Voice</FormLabel>
-                      <Select
-                        name="voiceId"
-                        value={botData.voiceId || ''}
-                        onChange={handleChange}
-                        placeholder="Select a default voice"
-                      >
-                        <option value="">No default voice</option>
-                        {voices.map(voice => (
-                          <option key={voice.id} value={voice.id}>
-                            {voice.flag && `${voice.flag} `}{voice.name} - {voice.description}
-                          </option>
-                        ))}
-                      </Select>
-                      
-                      {botData.voiceId && (
-                        <HStack mt={3}>
-                          <Button
-                            leftIcon={isPlaying ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                            size="sm"
-                            colorScheme={isPlaying ? "red" : "purple"}
-                            onClick={handlePreviewVoice}
-                          >
-                            {isPlaying ? "Stop" : "Preview Voice"}
-                          </Button>
-                        </HStack>
-                      )}
-                      
-                      <Text fontSize="sm" color="gray.500" mt={2}>
-                        Setting a default voice will automatically use this voice for the bot's responses.
-                        Users can still override this in their personal settings.
-                      </Text>
-                    </FormControl>
-                    
-                    <Alert status="info" borderRadius="md">
-                      <AlertIcon />
-                      <AlertDescription fontSize="sm">
-                      </AlertDescription>
-                      </Alert>
+export default withAuth(AdminBotEdit);
