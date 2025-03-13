@@ -1,34 +1,39 @@
 // components/chat/ImageDisplay.js
-// A component to display images from the ImageGenerationService
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  AspectRatio,
-  CircularProgress,
-  IconButton,
-  Modal,
-  ModalDialog,
-  ModalClose,
-  Typography,
-} from '@mui/joy';
-import { Download, ZoomIn } from 'lucide-react';
-import imageService from '../../lib/imageGenerationService';
+import { 
+  Box, 
+  Image, 
+  Spinner, 
+  IconButton, 
+  Modal, 
+  ModalOverlay, 
+  ModalContent, 
+  ModalCloseButton, 
+  Text, 
+  VStack,
+  HStack
+} from '@chakra-ui/react';
+import { 
+  FiDownload, 
+  FiZoomIn 
+} from 'react-icons/fi';
+import imageService from '@/lib/imageGenerationService';
 
 const ImageDisplay = ({ prompt, messageId = null }) => {
   const [imageUrl, setImageUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [open, setOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [hasTriedGeneration, setHasTriedGeneration] = useState(false);
   const [hasTriedDbUpdate, setHasTriedDbUpdate] = useState(false);
   
-  // Use a ref to track subscription ID for cleanup
+  // Subscription tracking
   const subscriptionIdRef = React.useRef(null);
   
-  // Initial check for cached image and start generation if needed
+  // Initial check for cached image and start generation
   useEffect(() => {
     const init = async () => {
-      // Check if the image is already cached
+      // Check cached image
       const cachedUrl = imageService.getCachedImage(prompt);
       if (cachedUrl) {
         setImageUrl(cachedUrl);
@@ -44,11 +49,10 @@ const ImageDisplay = ({ prompt, messageId = null }) => {
         }
       });
       
-      // Start generation if we haven't tried yet
+      // Start generation if not tried
       if (!hasTriedGeneration) {
         setHasTriedGeneration(true);
         try {
-          // This won't generate again if it's already in progress or cached
           await imageService.generateImage(prompt);
         } catch (err) {
           setError(err.message || 'Failed to generate image');
@@ -67,7 +71,7 @@ const ImageDisplay = ({ prompt, messageId = null }) => {
     };
   }, [prompt, hasTriedGeneration]);
   
-  // Save to database when we have a valid message ID and image URL
+  // Save to database when message ID and image URL are available
   useEffect(() => {
     const saveToDb = async () => {
       if (
@@ -85,6 +89,7 @@ const ImageDisplay = ({ prompt, messageId = null }) => {
     saveToDb();
   }, [messageId, imageUrl, prompt, hasTriedDbUpdate]);
   
+  // Download image
   const handleDownload = () => {
     if (!imageUrl) return;
     
@@ -97,119 +102,105 @@ const ImageDisplay = ({ prompt, messageId = null }) => {
     document.body.removeChild(link);
   };
   
+  // Loading state
   if (isLoading) {
     return (
-      <Box sx={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        flexDirection: 'column',
-        gap: 1,
-        my: 2,
-        p: 3,
-        borderRadius: 'md',
-        backgroundColor: 'background.level1',
-      }}>
-        <CircularProgress size="md" />
-        <Typography level="body-sm">Generating image...</Typography>
+      <Box 
+        display="flex" 
+        alignItems="center" 
+        justifyContent="center"
+        flexDirection="column"
+        gap={2}
+        my={2}
+        p={3}
+        borderRadius="md"
+        bg="gray.50"
+      >
+        <Spinner size="md" />
+        <Text fontSize="sm">Generating image...</Text>
       </Box>
     );
   }
   
+  // Error state
   if (error) {
     return (
-      <Box sx={{ 
-        p: 2, 
-        my: 2,
-        color: 'danger.500',
-        borderRadius: 'md',
-        backgroundColor: 'danger.softBg',
-      }}>
-        <Typography level="body-sm">Error generating image: {error}</Typography>
+      <Box 
+        p={2} 
+        my={2}
+        color="red.500"
+        bg="red.50"
+        borderRadius="md"
+      >
+        <Text fontSize="sm">Error generating image: {error}</Text>
       </Box>
     );
   }
   
+  // No image
   if (!imageUrl) return null;
   
   return (
-    <Box sx={{ my: 2 }}>
-      <AspectRatio 
-        ratio="1/1" 
-        objectFit="cover" 
-        sx={{ 
-          borderRadius: 'md',
-          cursor: 'pointer',
-          transition: 'transform 0.2s',
-          '&:hover': {
-            transform: 'scale(1.01)',
-          },
-          maxWidth: 400,
-        }}
-        onClick={() => setOpen(true)}
-      >
-        <img
-          src={imageUrl}
-          alt={prompt}
-          loading="lazy"
-        />
-      </AspectRatio>
+    <Box my={2}>
+      <Image
+        src={imageUrl}
+        alt={prompt}
+        borderRadius="md"
+        maxWidth="400px"
+        cursor="pointer"
+        transition="transform 0.2s"
+        _hover={{ transform: 'scale(1.01)' }}
+        onClick={() => setIsModalOpen(true)}
+      />
       
-      <Box sx={{ display: 'flex', gap: 1, mt: 1, justifyContent: 'flex-end' }}>
+      <HStack justify="flex-end" mt={1} spacing={1}>
         <IconButton
+          icon={<FiZoomIn />}
           size="sm"
-          variant="plain"
-          color="neutral"
-          onClick={() => setOpen(true)}
-        >
-          <ZoomIn size={16} />
-        </IconButton>
+          variant="ghost"
+          onClick={() => setIsModalOpen(true)}
+        />
         
         <IconButton
+          icon={<FiDownload />}
           size="sm"
-          variant="plain"
-          color="neutral"
+          variant="ghost"
           onClick={handleDownload}
-        >
-          <Download size={16} />
-        </IconButton>
-      </Box>
+        />
+      </HStack>
       
-      <Modal open={open} onClose={() => setOpen(false)}>
-        <ModalDialog
-          sx={{
-            maxWidth: 'min(90vw, 800px)',
-            maxHeight: '90vh',
-            p: 0,
-            overflow: 'hidden',
-          }}
-        >
-          <ModalClose />
-          <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
-            <img
-              src={imageUrl}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} size="4xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalCloseButton />
+          <VStack p={4} spacing={4}>
+            <Image 
+              src={imageUrl} 
               alt={prompt}
-              style={{
-                width: '100%',
-                height: 'auto',
-                display: 'block',
-              }}
+              maxHeight="80vh"
+              objectFit="contain"
             />
-            <Box sx={{ 
-              p: 2, 
-              backgroundColor: 'rgba(0,0,0,0.6)', 
-              color: 'white',
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              backdropFilter: 'blur(10px)',
-            }}>
-              <Typography level="body-md" fontWeight="bold">Prompt:</Typography>
-              <Typography level="body-sm">{prompt}</Typography>
+            <Box 
+              bg="gray.100" 
+              p={3} 
+              borderRadius="md" 
+              width="full"
+            >
+              <Text fontWeight="bold">Prompt:</Text>
+              <Text>{prompt}</Text>
             </Box>
-          </Box>
-        </ModalDialog>
+            <HStack width="full" justify="flex-end" spacing={2}>
+              <IconButton
+                icon={<FiDownload />}
+                onClick={handleDownload}
+                variant="solid"
+                colorScheme="blue"
+              >
+                Download
+              </IconButton>
+            </HStack>
+          </VStack>
+        </ModalContent>
       </Modal>
     </Box>
   );

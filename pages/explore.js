@@ -1,22 +1,26 @@
 // pages/explore.js
-
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import {
-  Typography,
-  Input,
-  Container,
   Box,
-  CircularProgress,
+  Container,
+  Heading,
+  Input,
+  InputLeftElement,
+  InputGroup,
+  Text,
+  VStack,
+  Spinner,
   Alert,
-} from '@mui/joy';
-import { Search } from 'lucide-react';
+  AlertIcon,
+  AlertTitle,
+  AlertDescription
+} from '@chakra-ui/react';
+import { FiSearch } from 'react-icons/fi';
 import Layout from '../components/layout/Layout';
 import BotList from '../components/bots/BotList';
 import withAuth from '../lib/withAuth';
 
 function Explore() {
-  const { t } = useTranslation();
   const [featuredBots, setFeaturedBots] = useState([]);
   const [popularBots, setPopularBots] = useState([]);
   const [recentChatsMap, setRecentChatsMap] = useState({});
@@ -80,40 +84,50 @@ function Explore() {
   if (isLoading) {
     return (
       <Layout>
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '70vh' }}>
-          <CircularProgress />
+        <Box 
+          display="flex" 
+          justifyContent="center" 
+          alignItems="center" 
+          height="70vh"
+        >
+          <Spinner size="xl" />
         </Box>
       </Layout>
     );
   }
   
   return (
-    <Layout>
-      <Container maxWidth="lg">
+    <Layout currentView="explore">
+      <Container maxW="container.lg">
         {error && (
-          <Alert color="danger" sx={{ mb: 4 }}>
-            {error}
+          <Alert status="error" mb={4}>
+            <AlertIcon />
+            <AlertTitle mr={2}>Error!</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
         
-        <Box sx={{ mb: 4 }}>
-          <Typography level="h3" sx={{ mb: 2 }}>
-            {t('explore.title')}
-          </Typography>
-          <Input
-            fullWidth
-            startDecorator={<Search />}
-            placeholder={t('explore.search')}
-            value={searchQuery}
-            onChange={handleSearch}
-            sx={{ mb: 4 }}
-          />
+        <Box mb={4}>
+          <Heading as="h3" size="lg" mb={2}>
+            Explore Bots
+          </Heading>
+          <InputGroup>
+            <InputLeftElement pointerEvents="none">
+              <FiSearch />
+            </InputLeftElement>
+            <Input
+              placeholder="Search bots..."
+              value={searchQuery}
+              onChange={handleSearch}
+              mb={4}
+            />
+          </InputGroup>
         </Box>
         
         {featuredBots.length > 0 && (
           <BotList 
             bots={featuredBots} 
-            title={t('explore.featured')} 
+            title="Featured Bots" 
             recentChatsMap={recentChatsMap}
           />
         )}
@@ -121,17 +135,19 @@ function Explore() {
         {popularBots.length > 0 && (
           <BotList 
             bots={popularBots} 
-            title={t('explore.popular')} 
+            title="Popular Bots" 
             recentChatsMap={recentChatsMap}
           />
         )}
         
         {featuredBots.length === 0 && popularBots.length === 0 && (
-          <Box sx={{ textAlign: 'center', py: 8 }}>
-            <Typography level="h5">No bots match your search</Typography>
-            <Typography level="body-md" sx={{ mt: 1, color: 'text.secondary' }}>
+          <Box textAlign="center" py={8}>
+            <Heading as="h5" size="md" mb={2}>
+              No bots match your search
+            </Heading>
+            <Text color="gray.500">
               Try a different search term or browse all bots
-            </Typography>
+            </Text>
           </Box>
         )}
       </Container>

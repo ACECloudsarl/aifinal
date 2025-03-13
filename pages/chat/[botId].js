@@ -5,13 +5,16 @@ import { useTranslation } from 'react-i18next';
 import { useSession } from 'next-auth/react';
 import withAuth from '../../lib/withAuth';
 import {
-  Box,
-  Typography,
-  Avatar,
-  Divider,
-  CircularProgress,
-  Alert,
-} from '@mui/joy';
+  Box, 
+  VStack, 
+  HStack, 
+  Text, 
+  Avatar, 
+  Spinner, 
+  Alert, 
+  AlertIcon,
+  AlertTitle,
+} from '@chakra-ui/react';
 import Layout from '../../components/layout/Layout';
 import ChatMessage from '../../components/chat/ChatMessage';
 import ChatInput from '../../components/chat/ChatInput';
@@ -470,139 +473,164 @@ useEffect(() => {
     }
   };
   
+  // Initialization loading state
   if (isInitializing) {
     return (
       <Layout>
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-          <CircularProgress />
+        <Box 
+          display="flex" 
+          justifyContent="center" 
+          alignItems="center" 
+          height="100vh"
+        >
+          <Spinner size="xl" />
         </Box>
       </Layout>
     );
   }
   
+  // Bot not found state
   if (!bot && !error) {
     return (
       <Layout>
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-          <CircularProgress />
+        <Box 
+          display="flex" 
+          justifyContent="center" 
+          alignItems="center" 
+          height="100vh"
+        >
+          <Spinner size="xl" />
         </Box>
       </Layout>
     );
   }
   
-  return (
-    <Layout>
-      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+   // Main chat return
+   return (
+    <Layout currentView="chat">
+      <Box 
+        display="flex" 
+        flexDirection="column" 
+        height="100vh"
+      >
+        {/* Error Alert */}
         {error && (
-          <Alert color="danger" sx={{ mb: 2 }}>
-            {error}
+          <Alert status="error" mb={2}>
+            <AlertIcon />
+            <AlertTitle>{error}</AlertTitle>
           </Alert>
         )}
         
+        {/* Bot Header */}
         {bot && (
-          <Box
-            sx={{
-              p: 2,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 2,
-              borderBottom: '1px solid',
-              borderColor: 'divider',
-            }}
+          <HStack 
+            p={2} 
+            spacing={3} 
+            borderBottom="1px solid" 
+            borderColor="gray.200" 
+            align="center"
           >
-            <Avatar
-              src={bot.avatar}
-              alt={bot.name}
+            <Avatar 
+              src={bot.avatar} 
+              name={bot.name} 
+              size="md" 
             />
-            <Box>
-              <Typography level="title-md">{bot.name}</Typography>
-              <Typography level="body-sm" sx={{ color: 'text.secondary' }}>
+            <VStack align="start" spacing={0}>
+              <Text fontWeight="bold">{bot.name}</Text>
+              <Text 
+                fontSize="sm" 
+                color="gray.500"
+              >
                 {bot.description}
-              </Typography>
-            </Box>
-          </Box>
+              </Text>
+            </VStack>
+          </HStack>
         )}
         
-        <Box
-          sx={{
-            flex: 1,
-            overflowY: 'auto',
-            p: 2,
-            display: 'flex',
-            flexDirection: 'column',
-          }}
+        {/* Messages Container */}
+        <Box 
+          flex={1} 
+          overflowY="auto" 
+          p={2} 
+          display="flex" 
+          flexDirection="column"
         >
+          {/* Empty State */}
           {messages.length === 0 && !isLoading ? (
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-                color: 'text.secondary',
-              }}
+            <VStack 
+              justify="center" 
+              align="center" 
+              height="100%" 
+              color="gray.500" 
+              textAlign="center"
+              spacing={4}
             >
-              <Typography level="body-lg" sx={{ mb: 2 }}>
-                {t('chat.start_conversation')}
-              </Typography>
-              <Typography level="body-sm">
-                {t('chat.example_prompts')}
-              </Typography>
-            </Box>
+              <Text fontSize="xl">Start a conversation</Text>
+              <Text fontSize="md">
+                Try asking a question or exploring the bot's capabilities
+              </Text>
+            </VStack>
           ) : (
-            messages.map((message) => (
-              <ChatMessage
-                key={message.id}
-                message={message}
-                onCopy={handleCopy}
-                onRegenerate={handleRegenerate}
-                onSpeak={handleSpeak}
-                onImageGenerated={handleImageGenerated}
-                bot={bot}
-              />
-            ))
+            <VStack spacing={4} align="stretch" width="full">
+              {/* Regular Messages */}
+              {messages.map((message) => (
+                <ChatMessage
+                  key={message.id}
+                  message={message}
+                  onCopy={handleCopy}
+                  onRegenerate={handleRegenerate}
+                  onSpeak={handleSpeak}
+                  onImageGenerated={handleImageGenerated}
+                  bot={bot}
+                  localImages={messagesWithImages}
+                />
+              ))}
+              
+              {/* Streaming Message */}
+              {streamingMessage && (
+                <ChatMessage
+                  message={streamingMessage}
+                  onCopy={() => {}}
+                  onRegenerate={() => {}}
+                  onSpeak={() => {}}
+                  bot={bot}
+                />
+              )}
+              
+              {/* Loading Indicator */}
+              {isLoading && !streamingMessage && (
+                <HStack 
+                  align="center" 
+                  spacing={2} 
+                  mb={3}
+                >
+                  <Avatar 
+                    src={bot?.avatar} 
+                    name={bot?.name} 
+                    size="sm" 
+                  />
+                  <Spinner size="sm" />
+                </HStack>
+              )}
+              
+              {/* Scroll Anchor */}
+              <Box ref={messagesEndRef} />
+            </VStack>
           )}
-          
-          {streamingMessage && (
-            <ChatMessage
-              message={streamingMessage}
-              onCopy={() => {}}
-              onRegenerate={() => {}}
-              onSpeak={() => {}}
-              bot={bot}
-            />
-          )}
-          
-          {isLoading && !streamingMessage && (
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                mb: 3,
-              }}
-            >
-              <Avatar
-                src={bot?.avatar}
-                alt={bot?.name}
-                size="sm"
-              />
-              <CircularProgress size="sm" />
-            </Box>
-          )}
-          
-          <div ref={messagesEndRef} />
         </Box>
         
+        {/* Chat Input */}
         <ChatInput
           onSendMessage={handleSendMessage}
           isLoading={isLoading}
           tokenUsage={tokenUsage}
+          isStreaming={!!streamingMessage}
+          onCancelStreaming={() => setStreamingMessage(null)}
         />
       </Box>
     </Layout>
   );
+
 }
 
 export default withAuth(Chat);

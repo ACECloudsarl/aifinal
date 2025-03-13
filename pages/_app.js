@@ -37,11 +37,14 @@ function MyApp({ Component, pageProps: { session, ...pageProps } }) {
       <ChakraProvider theme={directionTheme}>
         <ColorModeScript initialColorMode={theme.config.initialColorMode} />
         <div dir={isRtl ? 'rtl' : 'ltr'}>
+
           <Component {...pageProps} />
+
         </div>
       </ChakraProvider>
     </CacheProvider>
     </SessionProvider>
+
   );
 }
 

@@ -1,28 +1,38 @@
 // components/bots/BotList.js
-
 import React from 'react';
-import { Grid, Typography, Box } from '@mui/joy';
+import { 
+  Box, 
+  Heading, 
+  SimpleGrid 
+} from '@chakra-ui/react';
 import BotCard from './BotCard';
 
 const BotList = ({ bots, title, recentChatsMap = {} }) => {
   return (
-    <Box sx={{ mb: 4 }}>
+    <Box mb={4}>
       {title && (
-        <Typography level="h5" sx={{ mb: 2 }}>
+        <Heading 
+          as="h5" 
+          size="md" 
+          mb={2}
+        >
           {title}
-        </Typography>
+        </Heading>
       )}
       
-      <Grid container spacing={2}>
+      <SimpleGrid 
+        columns={{ base: 1, sm: 2, md: 3, lg: 4 }} 
+        spacing={4}
+      >
         {bots.map((bot) => (
-          <Grid key={bot.id} xs={12} sm={6} md={4} lg={3}>
+          <Box key={bot.id}>
             <BotCard 
               bot={bot} 
               recentChats={recentChatsMap[bot.id] || []}
             />
-          </Grid>
+          </Box>
         ))}
-      </Grid>
+      </SimpleGrid>
     </Box>
   );
 };

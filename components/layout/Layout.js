@@ -1,15 +1,27 @@
 // components/layout/Layout.js
 import { useState } from 'react';
-import { Box, useColorModeValue } from '@chakra-ui/react';
+import { 
+  Box, 
+  Flex, 
+  useColorModeValue 
+} from '@chakra-ui/react';
 import Header from './Header';
 import Sidebar from './Sidebar';
 
-const Layout = ({ children, currentChat, currentView, chatList = [] }) => {
+const Layout = ({ 
+  children, 
+  currentChat, 
+  currentView, 
+  chatList = [] 
+}) => {
   const [showMobileNav, setShowMobileNav] = useState(false);
   const bgColor = useColorModeValue('gray.50', 'gray.900');
   
   return (
-    <Box minH="100vh" bg={bgColor}>
+    <Flex 
+      minHeight="100vh" 
+      bg={bgColor}
+    >
       {/* Sidebar component */}
       <Sidebar
         currentChat={currentChat}
@@ -20,8 +32,10 @@ const Layout = ({ children, currentChat, currentView, chatList = [] }) => {
       />
       
       {/* Main content area */}
-      <Box 
-        ml={{ base: 0, md: 'auto' }} 
+      <Flex 
+        flexDirection="column" 
+        flex={1} 
+        ml={{ base: 0, md: '280px' }}
         transition="margin 0.3s"
       >
         {/* Header */}
@@ -34,14 +48,16 @@ const Layout = ({ children, currentChat, currentView, chatList = [] }) => {
         <Box
           as="main"
           p={{ base: 4, md: 6 }}
-          minH="calc(100vh - 72px)"
+          flex={1}
           maxW="1600px"
           mx="auto"
+          width="full"
+          overflow="hidden"
         >
           {children}
         </Box>
-      </Box>
-    </Box>
+      </Flex>
+    </Flex>
   );
 };
 

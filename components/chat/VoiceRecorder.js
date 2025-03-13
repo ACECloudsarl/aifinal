@@ -1,30 +1,41 @@
 // components/chat/VoiceRecorder.js
 import React, { useState, useEffect, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
-import {
-  IconButton,
-  Tooltip,
-  CircularProgress,
-  Typography,
-  Box,
-  Snackbar,
-} from '@mui/joy';
-import { Mic, MicOff, StopCircle } from 'lucide-react';
+import { 
+  IconButton, 
+  Box, 
+  Text, 
+  VStack, 
+  useToast,
+  HStack,
+  Spinner
+} from '@chakra-ui/react';
+import { 
+  FiMic, 
+  FiMicOff, 
+  FiStopCircle 
+} from 'react-icons/fi';
 import speechRecognitionService from '@/lib/SpeechRecognitionService';
 
 const VoiceRecorder = ({ onVoiceRecorded }) => {
-  const { t } = useTranslation();
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [recognizedText, setRecognizedText] = useState('');
-  const [error, setError] = useState('');
   const timerRef = useRef(null);
+  const toast = useToast();
+  
+  // Check if speech recognition is supported
   const isSupported = speechRecognitionService.isSupported;
 
   // Initialize speech recognition
   useEffect(() => {
     if (!isSupported) {
-      setError('Speech recognition is not supported in this browser');
+      toast({
+        title: "Speech Recognition Unsupported",
+        description: "Your browser does not support speech recognition.",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+      });
       return;
     }
 
@@ -41,7 +52,13 @@ const VoiceRecorder = ({ onVoiceRecorded }) => {
     });
 
     speechRecognitionService.onError((errMsg) => {
-      setError(`Speech recognition error: ${errMsg}`);
+      toast({
+        title: "Speech Recognition Error",
+        description: errMsg,
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
       stopRecording();
     });
 
@@ -62,12 +79,8 @@ const VoiceRecorder = ({ onVoiceRecorded }) => {
 
   // Start recording
   const startRecording = () => {
-    if (!isSupported) {
-      setError('Speech recognition is not supported in this browser');
-      return;
-    }
+    if (!isSupported) return;
 
-    setError('');
     setRecognizedText('');
     setIsRecording(true);
     
@@ -97,102 +110,75 @@ const VoiceRecorder = ({ onVoiceRecorded }) => {
   // If speech recognition is not supported
   if (!isSupported) {
     return (
-      <Tooltip title="Speech recognition not supported in your browser">
-        <IconButton 
-          color="neutral" 
-          variant="plain"
-          disabled
-        >
-          <Mic size={20} />
-        </IconButton>
-      </Tooltip>
+      <IconButton 
+        icon={<FiMicOff />}
+        variant="ghost"
+        color="gray.500"
+        isDisabled
+        aria-label="Speech recognition not supported"
+      />
     );
   }
 
   return (
-    <>
+    <VStack spacing={2} align="stretch" position="relative">
       {isRecording ? (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <HStack spacing={2}>
           <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-              px: 2,
-              py: 0.5,
-              borderRadius: 'pill',
-              bgcolor: 'danger.softBg',
-              animation: 'pulse 1.5s infinite',
-              '@keyframes pulse': {
-                '0%': { opacity: 1 },
-                '50%': { opacity: 0.6 },
-                '100%': { opacity: 1 },
-              },
-            }}
+            bg="red.50"
+            color="red.500"
+            px={3}
+            py={1}
+            borderRadius="full"
+            display="flex"
+            alignItems="center"
+            gap={2}
           >
-            <CircularProgress size="sm" color="danger" />
-            <Typography color="danger" fontWeight="md">
+            <Spinner size="sm" color="red.500" />
+            <Text fontWeight="medium">
               {formatTime(recordingDuration)}
-            </Typography>
+            </Text>
           </Box>
           
-          <Tooltip title={t('chat.stop_recording', 'Stop Recording')}>
-            <IconButton 
-              color="danger"
-              variant="soft" 
-              onClick={stopRecording}
-            >
-              <StopCircle size={18} />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      ) : (
-        <Tooltip title={t('chat.start_voice', 'Voice Input')}>
           <IconButton
-            color="neutral"
-            variant="plain"
-            onClick={startRecording}
-          >
-            <Mic size={20} />
-          </IconButton>
-        </Tooltip>
+            icon={<FiStopCircle />}
+            colorScheme="red"
+            variant="outline"
+            onClick={stopRecording}
+            aria-label="Stop Recording"
+          />
+        </HStack>
+      ) : (
+        <IconButton
+          icon={<FiMic />}
+          variant="ghost"
+          onClick={startRecording}
+          aria-label="Start Voice Recording"
+        />
       )}
       
       {recognizedText && (
         <Box
-          sx={{
-            position: 'absolute',
-            bottom: '100%',
-            left: 0,
-            right: 0,
-            p: 2,
-            bgcolor: 'background.surface',
-            borderRadius: 'md',
-            boxShadow: 'md',
-            maxHeight: '150px',
-            overflow: 'auto',
-            mb: 1,
-            border: '1px solid',
-            borderColor: 'divider',
-            zIndex: 100,
-          }}
+          position="absolute"
+          bottom="100%"
+          left={0}
+          right={0}
+          bg="white"
+          border="1px solid"
+          borderColor="gray.200"
+          borderRadius="md"
+          p={2}
+          mb={2}
+          boxShadow="md"
+          maxHeight="150px"
+          overflow="auto"
         >
-          <Typography level="body-sm" fontStyle="italic">
+          <Text fontSize="sm" fontStyle="italic" color="gray.600">
             {recognizedText}
-          </Typography>
+          </Text>
         </Box>
       )}
-      
-      <Snackbar
-        open={!!error}
-        onClose={() => setError('')}
-        color="danger"
-        variant="soft"
-        autoHideDuration={5000}
-      >
-        {error}
-      </Snackbar>
-    </>
+    </VStack>
   );
 };
 

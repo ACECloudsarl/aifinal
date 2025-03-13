@@ -1,35 +1,36 @@
 // components/chat/ChatMessage.js
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
-import {
-  Box,
-  Typography,
-  Avatar,
-  IconButton,
-  Sheet,
-  Tooltip,
-  AspectRatio,
-} from '@mui/joy';
-import {
-  Copy,
-  RefreshCw,
-  Volume2,
-  VolumeX,
-} from 'lucide-react';
+import { 
+  Box, 
+  Text, 
+  Avatar, 
+  IconButton, 
+  Tooltip, 
+  VStack, 
+  HStack, 
+  Image,
+  useColorModeValue 
+} from '@chakra-ui/react';
+import { 
+  FiCopy, 
+  FiRefreshCw, 
+  FiVolume2, 
+  FiVolumeX 
+} from 'react-icons/fi';
 import ImageDisplay from './ImageDisplay';
 import voiceService from '@/lib/VoiceService';
 
 const ChatMessage = ({ message, onCopy, onRegenerate, bot }) => {
-  const { t } = useTranslation();
   const [isRTL, setIsRTL] = useState(false);
   const [isMessageSpeaking, setIsMessageSpeaking] = useState(false);
   const [autoTTSEnabled, setAutoTTSEnabled] = useState(false);
+  
   const isUser = message.role === 'user';
   
-  // Parse content for image tags - but only for assistant messages
+  // Parse content for image tags
   const [textContent, imageTags] = isUser 
-    ? [message.content, []] // For user messages, don't parse for image tags
-    : parseContentForImageTags(message.content); // Only parse assistant messages
+    ? [message.content, []] 
+    : parseContentForImageTags(message.content);
   
   // Check for stored images in metadata
   const hasStoredImages = message.metadata && (
@@ -37,13 +38,21 @@ const ChatMessage = ({ message, onCopy, onRegenerate, bot }) => {
     (Array.isArray(message.metadata.imageData) && message.metadata.imageData.length > 0)
   );
   
+  // Background and text colors based on user/bot message
+  const bgColor = useColorModeValue(
+    isUser ? 'blue.50' : 'gray.100', 
+    isUser ? 'blue.900' : 'gray.700'
+  );
+  const textColor = useColorModeValue(
+    isUser ? 'gray.800' : 'gray.900',
+    isUser ? 'gray.100' : 'gray.100'
+  );
+  
   // Check RTL and load voice settings on mount
   useEffect(() => {
-    // Check if we're in a browser environment
     if (typeof window !== 'undefined') {
       setIsRTL(document.dir === 'rtl');
       
-      // Load voice settings
       const loadSettings = async () => {
         const settings = await voiceService.loadUserSettings();
         if (settings) {
@@ -54,20 +63,18 @@ const ChatMessage = ({ message, onCopy, onRegenerate, bot }) => {
       loadSettings();
     }
     
-    // Subscribe to voice service playing events
+    // Subscribe to voice service events
     const unsubscribePlaying = voiceService.subscribeToPlaying(() => {
       if (isMessageSpeaking) {
         setIsMessageSpeaking(true);
       }
     });
     
-    // Subscribe to voice service stopped events
     const unsubscribeStopped = voiceService.subscribeToStopped(() => {
       setIsMessageSpeaking(false);
     });
     
     return () => {
-      // Clean up subscriptions
       unsubscribePlaying();
       unsubscribeStopped();
     };
@@ -76,14 +83,12 @@ const ChatMessage = ({ message, onCopy, onRegenerate, bot }) => {
   // Auto-speak assistant messages if auto TTS is enabled
   useEffect(() => {
     const autoSpeak = async () => {
-      // Only auto-speak assistant messages, not temporary messages, and only if not already speaking
       if (
         !isUser && 
         autoTTSEnabled && 
         !message.id.startsWith('temp-') && 
         !isMessageSpeaking
       ) {
-        // Don't auto-speak messages with images
         if (!hasStoredImages && imageTags.length === 0) {
           handleSpeak();
         }
@@ -101,12 +106,10 @@ const ChatMessage = ({ message, onCopy, onRegenerate, bot }) => {
     const imageTags = [];
     let match;
     
-    // Find all image tags
     while ((match = regex.exec(content)) !== null) {
       imageTags.push(match[1].trim());
     }
     
-    // Remove image tags from content
     const cleanedContent = content.replace(regex, '');
     
     return [cleanedContent, imageTags];
@@ -121,8 +124,6 @@ const ChatMessage = ({ message, onCopy, onRegenerate, bot }) => {
     }
     
     const contentToSpeak = hasStoredImages ? message.content : textContent;
-    
-    // Use bot's voice ID if available
     const voiceId = bot?.voiceId;
     
     try {
@@ -136,93 +137,62 @@ const ChatMessage = ({ message, onCopy, onRegenerate, bot }) => {
 
   return (
     <Box
-      sx={{
-        display: 'flex',
-        flexDirection: isUser ? 'row-reverse' : 'row',
-        gap: 1.5,
-        mb: 3,
-      }}
+      display="flex"
+      flexDirection={isUser ? 'row-reverse' : 'row'}
+      gap={3}
+      mb={4}
+      alignItems="flex-start"
     >
       <Avatar
         src={isUser ? "/images/user-avatar.png" : bot?.avatar}
-        alt={isUser ? "User" : bot?.name}
+        name={isUser ? "User" : bot?.name}
         size="sm"
       />
       
-      <Box sx={{ maxWidth: '80%' }}>
-        <Typography
-          level="body-xs"
-          sx={{
-            mb: 0.5,
-            textAlign: isUser ? 'right' : 'left',
-            color: 'text.secondary',
-          }}
+      <VStack align="stretch" maxWidth="80%">
+        <Text
+          fontSize="xs"
+          textAlign={isUser ? 'right' : 'left'}
+          color="gray.500"
         >
           {isUser ? "You" : bot?.name}
-        </Typography>
+        </Text>
         
-        <Sheet
-          variant="soft"
-          color={isUser ? "primary" : "neutral"}
-          sx={{
-            p: 2,
-            borderRadius: '16px',
-            borderTopRightRadius: isUser && !isRTL ? '4px' : '16px',
-            borderTopLeftRadius: isUser && isRTL ? '4px' : '16px',
-            borderBottomLeftRadius: !isUser && !isRTL ? '4px' : '16px',
-            borderBottomRightRadius: !isUser && isRTL ? '4px' : '16px',
-            wordBreak: 'break-word',
-          }}
+        <Box
+          bg={bgColor}
+          color={textColor}
+          p={3}
+          borderRadius="lg"
+          borderTopRightRadius={isUser ? "none" : "lg"}
+          borderTopLeftRadius={isUser ? "lg" : "none"}
         >
-          <Typography>
-            {hasStoredImages ? message.content : textContent}
-          </Typography>
+          <Text>{hasStoredImages ? message.content : textContent}</Text>
           
-          {/* Case 1: Permanent message with stored image URLs */}
-          {message.metadata && message.metadata.imagePrompts && message.metadata.imageUrls && 
-            message.metadata.imagePrompts.map((prompt, index) => (
-              <Box key={`stored-${message.id}-${index}`} sx={{ my: 2 }}>
-                <AspectRatio 
-                  ratio="1/1" 
-                  objectFit="cover" 
-                  sx={{ 
-                    borderRadius: 'md',
-                    maxWidth: 400
-                  }}
-                >
-                  <img
-                    src={message.metadata.imageUrls[index]}
-                    alt={prompt}
-                    loading="lazy"
-                  />
-                </AspectRatio>
-              </Box>
-            ))
-          }
+          {/* Stored Image URLs */}
+          {message.metadata?.imageUrls?.map((url, index) => (
+            <Image
+              key={`stored-${message.id}-${index}`}
+              src={url}
+              alt={message.metadata.imagePrompts?.[index] || "AI generated image"}
+              borderRadius="md"
+              mt={2}
+              maxWidth="400px"
+            />
+          ))}
           
-          {/* Case 2: Legacy messages with base64 data */}
-          {message.metadata && message.metadata.imageData && !message.metadata.imageUrls && 
-            message.metadata.imageData.map((base64Data, index) => (
-              <Box key={`legacy-${message.id}-${index}`} sx={{ my: 2 }}>
-                <AspectRatio 
-                  ratio="1/1" 
-                  objectFit="cover" 
-                  sx={{ 
-                    borderRadius: 'md',
-                    maxWidth: 400
-                  }}
-                >
-                  <img
-                    src={`data:image/png;base64,${base64Data}`}
-                    alt={message.metadata.imagePrompts?.[index] || "AI generated image"}
-                    loading="lazy"
-                  />
-                </AspectRatio>
-              </Box>
-            ))
-          }
+          {/* Legacy Base64 Images */}
+          {message.metadata?.imageData?.map((base64Data, index) => (
+            <Image
+              key={`legacy-${message.id}-${index}`}
+              src={`data:image/png;base64,${base64Data}`}
+              alt={message.metadata.imagePrompts?.[index] || "AI generated image"}
+              borderRadius="md"
+              mt={2}
+              maxWidth="400px"
+            />
+          ))}
           
-          {/* Case 3: New images using the ImageDisplay component */}
+          {/* New Images via ImageDisplay */}
           {!hasStoredImages && imageTags.map((prompt, index) => (
             <ImageDisplay
               key={`display-${prompt.substring(0, 20)}`}
@@ -230,56 +200,40 @@ const ChatMessage = ({ message, onCopy, onRegenerate, bot }) => {
               messageId={message.id}
             />
           ))}
-        </Sheet>
+        </Box>
 
         {!isUser && (
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'flex-start',
-              gap: 0.5,
-              mt: 0.5,
-            }}
-          >
-            <Tooltip title={t('chat.copy')}>
+          <HStack justify="flex-start" spacing={1} mt={1}>
+            <Tooltip label="Copy">
               <IconButton
-                variant="plain"
-                color="neutral"
-                size="sm"
+                icon={<FiCopy />}
+                size="xs"
+                variant="ghost"
                 onClick={() => onCopy(hasStoredImages ? message.content : textContent)}
-              >
-                <Copy size={16} />
-              </IconButton>
+              />
             </Tooltip>
             
-            <Tooltip title={t('chat.regenerate')}>
+            <Tooltip label="Regenerate">
               <IconButton
-                variant="plain"
-                color="neutral"
-                size="sm"
+                icon={<FiRefreshCw />}
+                size="xs"
+                variant="ghost"
                 onClick={() => onRegenerate(message.id)}
-              >
-                <RefreshCw size={16} />
-              </IconButton>
+              />
             </Tooltip>
             
-            <Tooltip title={isMessageSpeaking ? t('chat.stop_speaking') : t('chat.speak')}>
+            <Tooltip label={isMessageSpeaking ? "Stop Speaking" : "Speak"}>
               <IconButton
-                variant="plain"
-                color={isMessageSpeaking ? "primary" : "neutral"}
-                size="sm"
+                icon={isMessageSpeaking ? <FiVolumeX /> : <FiVolume2 />}
+                size="xs"
+                variant="ghost"
+                colorScheme={isMessageSpeaking ? "red" : "blue"}
                 onClick={handleSpeak}
-              >
-                {isMessageSpeaking ? (
-                  <VolumeX size={16} />
-                ) : (
-                  <Volume2 size={16} />
-                )}
-              </IconButton>
+              />
             </Tooltip>
-          </Box>
+          </HStack>
         )}
-      </Box>
+      </VStack>
     </Box>
   );
 };
