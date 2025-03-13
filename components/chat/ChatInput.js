@@ -170,17 +170,22 @@ const ChatInput = ({ onSendMessage, isLoading, onCancelStreaming, tokenUsage = {
             </Box>
             
             <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'flex-end',
-                gap: 1,
-                bgcolor: 'background.level1',
-                borderRadius: 'lg',
-                p: 1,
-                boxShadow: 'sm',
-                border: '1px solid',
-                borderColor: 'divider',
-              }}
+           sx={{
+            display: 'flex',
+            alignItems: 'flex-end',
+            gap: 1,
+            bgcolor: 'background.level1',
+            borderRadius: 'xl',
+            p: 1.5,
+            boxShadow: 'sm',
+            border: '1px solid',
+            borderColor: 'divider',
+            transition: 'all 0.2s ease',
+            '&:focus-within': {
+              boxShadow: 'md',
+              borderColor: 'primary.outlinedBorder',
+            },
+          }}
             >
               <Textarea
                 ref={textareaRef}

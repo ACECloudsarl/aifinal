@@ -1,34 +1,42 @@
 // components/layout/Layout.js
-import React, { useState } from 'react';
-import { Box } from '@mui/joy';
+import { useState } from 'react';
+import { Box, useColorModeValue } from '@chakra-ui/react';
 import Header from './Header';
 import Sidebar from './Sidebar';
 
-const Layout = ({ children }) => {
-  const [open, setOpen] = useState(false);
-
+const Layout = ({ children, currentChat, currentView, chatList = [] }) => {
+  const [showMobileNav, setShowMobileNav] = useState(false);
+  const bgColor = useColorModeValue('gray.50', 'gray.900');
+  
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      <Sidebar open={open} setOpen={setOpen} />
+    <Box minH="100vh" bg={bgColor}>
+      {/* Sidebar component */}
+      <Sidebar
+        currentChat={currentChat}
+        currentView={currentView}
+        chatList={chatList}
+        isMobileOpen={showMobileNav}
+        setIsMobileOpen={setShowMobileNav}
+      />
       
-      <Box
-        component="main"
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          flex: 1,
-          minWidth: 0,
-          height: '100vh',
-          overflowY: 'hidden',
-        }}
+      {/* Main content area */}
+      <Box 
+        ml={{ base: 0, md: 'auto' }} 
+        transition="margin 0.3s"
       >
-        <Header setOpen={setOpen} />
+        {/* Header */}
+        <Header 
+          setMobileMenuOpen={setShowMobileNav}
+          currentView={currentView}
+        />
+        
+        {/* Page Content */}
         <Box
-          sx={{
-            flex: 1,
-            overflowY: 'auto',
-            p: { xs: 2, md: 3 },
-          }}
+          as="main"
+          p={{ base: 4, md: 6 }}
+          minH="calc(100vh - 72px)"
+          maxW="1600px"
+          mx="auto"
         >
           {children}
         </Box>

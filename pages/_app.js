@@ -1,45 +1,46 @@
-// pages/_app.js (updated)
-import React, { useState, useEffect } from 'react';
-import { CssVarsProvider } from '@mui/joy/styles';
-import CssBaseline from '@mui/joy/CssBaseline';
-import { createTheme, themeColors } from '../lib/theme';
+// pages/_app.js
+import { useRouter } from 'next/router';
+import theme from '@/lib/theme';
+import { ChakraProvider, ColorModeScript } from '@chakra-ui/react';
+import { CacheProvider } from '@emotion/react';
+import rtlPlugin from 'stylis-plugin-rtl';
+import createCache from '@emotion/cache';
 import { SessionProvider } from 'next-auth/react';
-import '../lib/i18n';
+
+// Create rtl cache
+const createRtlCache = () => {
+  return createCache({
+    key: 'muirtl',
+    stylisPlugins: [rtlPlugin],
+  });
+};
 
 function MyApp({ Component, pageProps: { session, ...pageProps } }) {
-  const [theme, setTheme] = useState('purple');
-  const [mode, setMode] = useState('light');
+  const router = useRouter();
   
-  useEffect(() => {
-    // Check local storage for theme preferences
-    const savedTheme = localStorage.getItem('theme') || 'purple';
-    const savedMode = localStorage.getItem('mode') || 'light';
-    
-    setTheme(savedTheme);
-    setMode(savedMode);
-    
-    // Set up event listener for theme changes
-    const handleThemeChange = (e) => {
-      setTheme(e.detail);
-      localStorage.setItem('theme', e.detail);
-    };
-    
-    document.addEventListener('themeChange', handleThemeChange);
-    
-    return () => {
-      document.removeEventListener('themeChange', handleThemeChange);
-    };
-  }, []);
+  // Determine if the current route should use RTL
+  const isRtl = router.locale === 'ar';
   
-  // Create the MUI Joy theme with our custom theme
-  const joyTheme = createTheme(theme, mode);
+  // Create appropriate cache
+  const cache = isRtl ? createRtlCache() : createCache({ key: 'muiltr' });
   
+  // Create direction-aware theme
+  const directionTheme = {
+    ...theme,
+    direction: isRtl ? 'rtl' : 'ltr',
+  };
+
   return (
     <SessionProvider session={session}>
-      <CssVarsProvider theme={joyTheme} defaultMode={mode}>
-        <CssBaseline />
-        <Component {...pageProps} />
-      </CssVarsProvider>
+
+    <CacheProvider value={cache}>
+      <ChakraProvider theme={directionTheme}>
+        <ColorModeScript initialColorMode={theme.config.initialColorMode} />
+        <div dir={isRtl ? 'rtl' : 'ltr'}>
+          <Component {...pageProps} />
+        </div>
+      </ChakraProvider>
+    </CacheProvider>
     </SessionProvider>
   );
 }
