@@ -1,4 +1,4 @@
-// components/chat/ImageDisplay.js
+// components/chat/ImageDisplay.js - Redesigned with thumbnail approach
 import React, { useState, useEffect } from 'react';
 import { 
   Box, 
@@ -8,7 +8,6 @@ import {
   Modal, 
   ModalOverlay, 
   ModalContent, 
-  ModalCloseButton, 
   Text, 
   VStack,
   HStack,
@@ -19,39 +18,49 @@ import {
   Flex,
   useDisclosure,
   Tooltip,
-  Fade,
   Progress,
-  Collapse
+  AspectRatio,
+  Collapse,
+  Circle,
+  Center,
 } from '@chakra-ui/react';
 import { 
   FiDownload, 
   FiZoomIn,
   FiRefreshCw,
-  FiCopy,
+  FiX,
   FiMaximize,
   FiImage,
-  FiLink,
-  FiShare2
+  FiInfo,
+  FiShare2,
 } from 'react-icons/fi';
 import imageService from '@/lib/imageGenerationService';
 
-const ImageDisplay = ({ prompt, messageId = null, onImageGenerated = null }) => {
-  const [imageUrl, setImageUrl] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+const ImageDisplay = ({ 
+  prompt, 
+  messageId = null, 
+  onImageGenerated = null,
+  localImageUrl = null,
+  compact = false
+}) => {
+  const [imageUrl, setImageUrl] = useState(localImageUrl);
+  const [isLoading, setIsLoading] = useState(!localImageUrl);
   const [error, setError] = useState(null);
   const [progress, setProgress] = useState(0);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [hasTriedGeneration, setHasTriedGeneration] = useState(false);
   const [hasTriedDbUpdate, setHasTriedDbUpdate] = useState(false);
+  const [showPrompt, setShowPrompt] = useState(false);
   
   // Modal state
   const { isOpen, onOpen, onClose } = useDisclosure();
   
   // Colors
-  const modalBg = useColorModeValue('white', 'gray.800');
-  const promptBg = useColorModeValue('gray.100', 'gray.700');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const modalBg = useColorModeValue('rgba(0,0,0,0.9)', 'rgba(0,0,0,0.95)');
+  const promptBg = useColorModeValue('gray.50', 'gray.700');
+  const borderColor = useColorModeValue('gray.100', 'gray.600');
+  const skeletonStartColor = useColorModeValue('gray.100', 'gray.700');
+  const skeletonEndColor = useColorModeValue('gray.300', 'gray.600');
   
   // Subscription tracking
   const subscriptionIdRef = React.useRef(null);
@@ -74,6 +83,14 @@ const ImageDisplay = ({ prompt, messageId = null, onImageGenerated = null }) => 
   
   // Initial check for cached image and start generation
   useEffect(() => {
+    // If we already have a URL from props, use it
+    if (localImageUrl) {
+      setImageUrl(localImageUrl);
+      setIsLoading(false);
+      setProgress(100);
+      return;
+    }
+    
     const init = async () => {
       // Check cached image
       const cachedUrl = imageService.getCachedImage(prompt);
@@ -123,7 +140,7 @@ const ImageDisplay = ({ prompt, messageId = null, onImageGenerated = null }) => 
         imageService.unsubscribe(subscriptionIdRef.current);
       }
     };
-  }, [prompt, hasTriedGeneration, onImageGenerated]);
+  }, [prompt, hasTriedGeneration, onImageGenerated, localImageUrl]);
   
   // Save to database when message ID and image URL are available
   useEffect(() => {
@@ -144,7 +161,8 @@ const ImageDisplay = ({ prompt, messageId = null, onImageGenerated = null }) => 
   }, [messageId, imageUrl, prompt, hasTriedDbUpdate]);
   
   // Download image
-  const handleDownload = () => {
+  const handleDownload = (e) => {
+    if (e) e.stopPropagation();
     if (!imageUrl) return;
     
     const link = document.createElement('a');
@@ -157,7 +175,8 @@ const ImageDisplay = ({ prompt, messageId = null, onImageGenerated = null }) => 
   };
   
   // Retry generation
-  const handleRetry = async () => {
+  const handleRetry = async (e) => {
+    if (e) e.stopPropagation();
     setIsLoading(true);
     setError(null);
     setProgress(0);
@@ -173,98 +192,84 @@ const ImageDisplay = ({ prompt, messageId = null, onImageGenerated = null }) => 
   };
   
   // Share image (copy URL)
-  const handleShare = () => {
+  const handleShare = (e) => {
+    if (e) e.stopPropagation();
     if (navigator.clipboard && imageUrl) {
       navigator.clipboard.writeText(imageUrl);
       // Add toast notification here if you have toast system
     }
   };
   
-  // Loading state
+  // Loading state with elegant skeleton - smaller for thumbnail
   if (isLoading) {
     return (
       <Box 
-        display="flex" 
-        alignItems="center" 
-        justifyContent="center"
-        flexDirection="column"
-        gap={2}
-        my={4}
-        p={4}
+        position="relative"
+        overflow="hidden"
         borderRadius="md"
-        bg={useColorModeValue('gray.50', 'gray.700')}
-        border="1px dashed"
+        boxShadow="sm"
+        bg={useColorModeValue("gray.50", "gray.700")}
+        border="1px solid"
         borderColor={borderColor}
+        width={compact ? "100px" : "120px"}
+        height={compact ? "100px" : "120px"}
       >
-        <HStack width="full" justify="space-between" mb={1}>
-          <Badge colorScheme="blue" variant="subtle">
-            <HStack spacing={1}>
-              <FiImage size={12} />
-              <Text fontSize="xs">AI Image</Text>
-            </HStack>
-          </Badge>
-          <Text fontSize="xs" color="gray.500">{Math.round(progress)}%</Text>
-        </HStack>
-        
-        <Progress 
-          value={progress} 
-          size="xs" 
-          width="full" 
-          colorScheme="blue" 
-          borderRadius="full"
-          hasStripe
-          isAnimated
-          mb={2}
-        />
-        
-        <Skeleton 
-          height="300px" 
-          width="full" 
-          startColor={useColorModeValue('gray.100', 'gray.600')} 
-          endColor={useColorModeValue('gray.300', 'gray.800')} 
-          speed={0.8}
-          borderRadius="md"
-        />
-        
-        <HStack width="full" justify="space-between" fontSize="sm" color="gray.500">
-          <HStack>
-            <Spinner size="sm" />
-            <Text>Generating image...</Text>
-          </HStack>
-          <Text fontSize="xs" fontStyle="italic" maxW="70%" noOfLines={1} textAlign="right">
-            {prompt}
-          </Text>
-        </HStack>
+        <VStack spacing={0} width="full" height="full">
+          {/* Progress bar */}
+          <Progress 
+            value={progress} 
+            size="xs" 
+            width="full" 
+            colorScheme="blue" 
+            hasStripe
+            isAnimated
+            borderRadius={0}
+          />
+          
+          {/* Skeleton image container */}
+          <Center flex="1" width="full" position="relative">
+            <Skeleton 
+              startColor={skeletonStartColor}
+              endColor={skeletonEndColor}
+              speed={0.8}
+              width="90%"
+              height="90%"
+              borderRadius="md"
+            />
+            <Spinner 
+              size="sm" 
+              position="absolute" 
+              top="50%" 
+              left="50%" 
+              transform="translate(-50%, -50%)"
+            />
+          </Center>
+        </VStack>
       </Box>
     );
   }
   
-  // Error state
+  // Error state - smaller for thumbnail
   if (error) {
     return (
       <Box 
-        p={4}
-        my={4}
+        p={2}
         color="red.500"
         bg={useColorModeValue('red.50', 'red.900')}
         borderRadius="md"
         border="1px solid"
         borderColor={useColorModeValue('red.100', 'red.700')}
+        width={compact ? "100px" : "120px"}
       >
-        <VStack align="stretch" spacing={3}>
-          <Text fontSize="sm" fontWeight="medium">Error generating image</Text>
-          <Text fontSize="sm">{error}</Text>
-          <HStack>
-            <Button 
-              leftIcon={<FiRefreshCw />} 
-              size="sm" 
-              colorScheme="red" 
-              variant="outline"
-              onClick={handleRetry}
-            >
-              Try Again
-            </Button>
-          </HStack>
+        <VStack align="stretch" spacing={1}>
+          <Text fontSize="xs" fontWeight="medium">Error</Text>
+          <IconButton 
+            icon={<FiRefreshCw size={14} />} 
+            size="xs" 
+            colorScheme="red" 
+            onClick={handleRetry}
+            aria-label="Try again"
+          />
         </VStack>
       </Box>
     );
@@ -274,107 +279,106 @@ const ImageDisplay = ({ prompt, messageId = null, onImageGenerated = null }) => 
   if (!imageUrl) return null;
   
   return (
-    <Box my={4}>
-      <Box 
-        position="relative" 
-        borderRadius="md"
+    <>
+      {/* Thumbnail Image */}
+      <Box
+        position="relative"
         overflow="hidden"
-        boxShadow="md"
+        borderRadius="md"
+        boxShadow="sm"
+        bg={useColorModeValue("white", "gray.700")}
+        border="1px solid"
+        borderColor={borderColor}
         transition="all 0.2s"
-        _hover={{ transform: 'scale(1.01)', boxShadow: 'lg' }}
+        _hover={{ boxShadow: "md", transform: "scale(1.02)" }}
+        width={compact ? "100px" : "120px"}
+        height={compact ? "100px" : "120px"}
+        cursor="pointer"
+        onClick={onOpen}
       >
         <Image
           src={imageUrl}
           alt={prompt}
-          borderRadius="md"
-          width="full"
           objectFit="cover"
-          cursor="pointer"
-          onClick={onOpen}
-          fallback={<Skeleton height="300px" width="full" />}
+          width="full"
+          height="full"
+          fallback={<Skeleton height="100%" width="100%" />}
         />
         
-        <Fade in={true}>
-          <Box 
-            position="absolute" 
-            top={2} 
-            left={2}
-            bg="blackAlpha.500"
-            color="white"
-            px={2}
-            py={1}
-            borderRadius="md"
-            fontSize="xs"
-            backdropFilter="blur(4px)"
-          >
-            <HStack spacing={1}>
-              <FiImage size={12} />
-              <Text>AI Generated</Text>
-            </HStack>
-          </Box>
-        </Fade>
+        {/* Small Badge */}
+        <Badge
+          position="absolute"
+          top={1}
+          left={1}
+          colorScheme="blue"
+          bg="blackAlpha.700"
+          color="white"
+          fontSize="2xs"
+          px={1}
+          py={0.5}
+          borderRadius="sm"
+        >
+          <HStack spacing={0.5} alignItems="center">
+            <FiImage size={8} />
+            <Text fontSize="2xs">AI</Text>
+          </HStack>
+        </Badge>
+        
+        {/* Zoom icon on hover */}
+        <Circle
+          size="24px"
+          bg="blackAlpha.700"
+          color="white"
+          position="absolute"
+          right={1}
+          bottom={1}
+          opacity={0}
+          _groupHover={{ opacity: 1 }}
+          transition="opacity 0.2s"
+        >
+          <FiZoomIn size={12} />
+        </Circle>
       </Box>
       
-      <HStack justify="space-between" mt={2}>
-        <Text fontSize="xs" color="gray.500" noOfLines={1} maxW="80%">
-          {prompt.substring(0, 60)}{prompt.length > 60 ? '...' : ''}
-        </Text>
-        
-        <HStack spacing={1}>
-          <Tooltip label="View Fullsize">
-            <IconButton
-              icon={<FiZoomIn size={16} />}
-              size="sm"
-              variant="ghost"
-              onClick={onOpen}
-              aria-label="View Fullsize"
-            />
-          </Tooltip>
-          
-          <Tooltip label="Download">
-            <IconButton
-              icon={<FiDownload size={16} />}
-              size="sm"
-              variant="ghost"
-              onClick={handleDownload}
-              aria-label="Download Image"
-            />
-          </Tooltip>
-        </HStack>
-      </HStack>
-      
       {/* Fullscreen Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="4xl" isCentered>
-        <ModalOverlay backdropFilter="blur(8px)" />
-        <ModalContent bg={modalBg} maxW="90vw" maxH="90vh" overflow="hidden">
-          <ModalCloseButton zIndex={2} />
-          
-          <Box position="relative" overflow="hidden">
-            <Image 
-              src={imageUrl} 
-              alt={prompt}
-              objectFit="contain"
-              maxH="80vh"
-              w="full"
-            />
+      <Modal 
+        isOpen={isOpen} 
+        onClose={onClose} 
+        size="full" 
+        isCentered
+        motionPreset="slideInBottom"
+      >
+        <ModalOverlay bg={modalBg} backdropFilter="blur(8px)" />
+        <ModalContent bg="transparent" boxShadow="none" maxW="100vw" maxH="100vh">
+          <Box position="relative" height="100vh" width="100vw" onClick={onClose}>
+            {/* Centered Image */}
+            <Center height="100vh" width="100vw" p={4} position="relative">
+              <Image 
+                src={imageUrl} 
+                alt={prompt}
+                objectFit="contain"
+                maxH="80vh"
+                maxW="90vw"
+                borderRadius="md"
+                boxShadow="dark-lg"
+              />
+            </Center>
             
-            {/* Bottom prompt overlay */}
+            {/* Bottom prompt area */}
             <Box
               position="absolute"
               bottom={0}
               left={0}
               right={0}
-              bg="blackAlpha.700"
+              bg="blackAlpha.800"
               p={4}
               backdropFilter="blur(10px)"
             >
-              <VStack align="stretch" spacing={2}>
-                <Box>
-                  <Text color="white" fontWeight="bold" mb={1}>Prompt:</Text>
-                  <Text color="whiteAlpha.900">{prompt}</Text>
-                </Box>
+              <VStack align="stretch" spacing={2} maxW="800px" mx="auto">
+                <Text color="white" fontWeight="bold" fontSize="sm">Prompt:</Text>
+                <Text color="whiteAlpha.900" fontSize="sm">{prompt}</Text>
                 
-                <HStack justify="flex-end" spacing={2}>
+                <HStack justify="flex-end" spacing={3} mt={1}>
                   <Button 
                     leftIcon={<FiDownload />} 
                     onClick={handleDownload}
@@ -396,10 +400,27 @@ const ImageDisplay = ({ prompt, messageId = null, onImageGenerated = null }) => 
                 </HStack>
               </VStack>
             </Box>
+            
+            {/* Close Button - Bottom Right */}
+            <Circle
+              size="50px"
+              bg="blackAlpha.800"
+              color="white"
+              position="absolute"
+              right={6}
+              bottom={20}
+              cursor="pointer"
+              _hover={{ bg: "blackAlpha.900", transform: "scale(1.05)" }}
+              onClick={onClose}
+              boxShadow="dark-lg"
+              transition="all 0.2s"
+            >
+              <FiX size={24} />
+            </Circle>
           </Box>
         </ModalContent>
       </Modal>
-    </Box>
+    </>
   );
 };
 

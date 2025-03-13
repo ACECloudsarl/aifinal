@@ -1,4 +1,4 @@
-// pages/chat/[botId].js - FIXED VERSION
+// pages/chat/[botId].js - Redesigned
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useTranslation } from 'react-i18next';
@@ -14,7 +14,24 @@ import {
   Alert, 
   AlertIcon,
   AlertTitle,
+  useColorModeValue,
+  Container,
+  Divider,
+  Flex,
+  IconButton,
+  Tooltip,
+  Skeleton,
+  useDisclosure,
+  Drawer,
+  DrawerBody,
+  DrawerHeader,
+  DrawerOverlay,
+  DrawerContent,
+  DrawerCloseButton,
+  Button,
+  useBreakpointValue,
 } from '@chakra-ui/react';
+import { FiMenu, FiArrowLeft, FiInfo, FiX } from 'react-icons/fi';
 import Layout from '../../components/layout/Layout';
 import ChatMessage from '../../components/chat/ChatMessage';
 import ChatInput from '../../components/chat/ChatInput';
@@ -34,12 +51,23 @@ function Chat() {
   const [tokenUsage, setTokenUsage] = useState({ used: 0, total: 4000 });
   const [error, setError] = useState(null);
   const [messagesWithImages, setMessagesWithImages] = useState({});
-
+  
+  // Mobile drawer for bot info
+  const { isOpen, onOpen: openDrawer, onClose: closeDrawer } = useDisclosure();
   const messagesEndRef = useRef(null);
   
+  // Responsive values
+  const isMobile = useBreakpointValue({ base: true, md: false });
+  const containerMaxW = useBreakpointValue({ base: "100%", md: "768px", lg: "800px", xl: "900px" });
+
+  // Colors
+  const bgColor = useColorModeValue("white", "gray.900");
+  const borderColor = useColorModeValue("gray.200", "gray.700");
+  const headerBgColor = useColorModeValue("white", "gray.800");
+  const avatarBg = useColorModeValue("gray.100", "gray.700");
+  
   // Initialization effect - this runs first to set up the chat
-  // Update the initialization logic to better handle missing bots
-useEffect(() => {
+  useEffect(() => {
     const initializeChat = async () => {
       try {
         setIsInitializing(true);
@@ -47,8 +75,6 @@ useEffect(() => {
 
         const pathParam = router.query.botId;
         const effectiveChatId = router.query.chatId || pathParam;
-
-
         
         // Case 1: Direct navigation to a specific chat - use chatId from URL
         if (effectiveChatId) {
@@ -154,11 +180,10 @@ useEffect(() => {
     };
     
     // Only run when URL parameters or session changes
-if (router.isReady && session) {
-  initializeChat();
-}
-}, [router.isReady, router.query, session, router]);
-  
+    if (router.isReady && session) {
+      initializeChat();
+    }
+  }, [router.isReady, router.query, session, router]);
   
   // Load chat data and messages once chatId is set
   useEffect(() => {
@@ -199,7 +224,7 @@ if (router.isReady && session) {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages]);
+  }, [messages, streamingMessage]);
   
   const handleSendMessage = async (content) => {
     if (!chatId) return;
@@ -321,87 +346,73 @@ if (router.isReady && session) {
   };
 
   // This callback is called by ImageGenerator to update the UI immediately
-const handleImageGenerated = (prompt, imageUrl, index) => {
-  console.log(`Image generated for prompt: ${prompt.substring(0, 30)}... URL: ${imageUrl}`);
-  
-  // Store the generated image in local state
-  setMessagesWithImages(prev => ({
-    ...prev,
-    [prompt]: imageUrl
-  }));
-};
-
-// Pass the local images state to ChatMessage component
-const renderMessage = (message) => (
-  <ChatMessage
-    key={message.id}
-    message={message}
-    bot={bot}
-    onCopy={handleCopy}
-    onRegenerate={handleRegenerate}
-    onSpeak={handleSpeak}
-    onImageGenerated={handleImageGenerated}
-    localImages={messagesWithImages} // Pass the local images state
-  />
-);
-
-// When streaming is complete and we get a permanent ID, save images to the database
-useEffect(() => {
-  const saveImagesToPermanentMessage = async () => {
-    // Find the most recently added message that isn't a user message
-    const lastMessage = messages.length > 0 ? 
-      [...messages].reverse().find(msg => msg.role !== 'user') : null;
+  const handleImageGenerated = (prompt, imageUrl, index) => {
+    console.log(`Image generated for prompt: ${prompt.substring(0, 30)}... URL: ${imageUrl}`);
     
-    // Only proceed if:
-    // 1. We have a last message
-    // 2. It has a valid MongoDB ID (not a streaming ID)
-    // 3. We have local images that need saving
-    if (
-      lastMessage && 
-      lastMessage.id && 
-      !lastMessage.id.startsWith('streaming-') && 
-      !lastMessage.id.startsWith('temp-') &&
-      Object.keys(messagesWithImages).length > 0
-    ) {
-      console.log(`Saving images for permanent message ID: ${lastMessage.id}`);
+    // Store the generated image in local state
+    setMessagesWithImages(prev => ({
+      ...prev,
+      [prompt]: imageUrl
+    }));
+  };
+
+  // When streaming is complete and we get a permanent ID, save images to the database
+  useEffect(() => {
+    const saveImagesToPermanentMessage = async () => {
+      // Find the most recently added message that isn't a user message
+      const lastMessage = messages.length > 0 ? 
+        [...messages].reverse().find(msg => msg.role !== 'user') : null;
       
-      // Extract image tags from the message
-      const regex = /\[\!\|(.*?)\|\!\]/g;
-      const content = lastMessage.content || '';
-      let match;
-      
-      while ((match = regex.exec(content)) !== null) {
-        const prompt = match[1].trim();
-        const imageUrl = messagesWithImages[prompt];
+      // Only proceed if:
+      // 1. We have a last message
+      // 2. It has a valid MongoDB ID (not a streaming ID)
+      // 3. We have local images that need saving
+      if (
+        lastMessage && 
+        lastMessage.id && 
+        !lastMessage.id.startsWith('streaming-') && 
+        !lastMessage.id.startsWith('temp-') &&
+        Object.keys(messagesWithImages).length > 0
+      ) {
+        console.log(`Saving images for permanent message ID: ${lastMessage.id}`);
         
-        if (prompt && imageUrl) {
-          try {
-            // Call API to update the message metadata
-            const response = await fetch(`/api/messages/${lastMessage.id}/storeImage`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                prompt,
-                imageUrl,
-                index: 0 // We don't really need an index anymore
-              }),
-            });
-            
-            if (response.ok) {
-              console.log(`Successfully saved image for prompt: ${prompt.substring(0, 30)}...`);
-            } else {
-              console.error(`Failed to save image for prompt: ${prompt.substring(0, 30)}...`);
+        // Extract image tags from the message
+        const regex = /\[\!\|(.*?)\|\!\]/g;
+        const content = lastMessage.content || '';
+        let match;
+        
+        while ((match = regex.exec(content)) !== null) {
+          const prompt = match[1].trim();
+          const imageUrl = messagesWithImages[prompt];
+          
+          if (prompt && imageUrl) {
+            try {
+              // Call API to update the message metadata
+              const response = await fetch(`/api/messages/${lastMessage.id}/storeImage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  prompt,
+                  imageUrl,
+                  index: 0 // We don't really need an index anymore
+                }),
+              });
+              
+              if (response.ok) {
+                console.log(`Successfully saved image for prompt: ${prompt.substring(0, 30)}...`);
+              } else {
+                console.error(`Failed to save image for prompt: ${prompt.substring(0, 30)}...`);
+              }
+            } catch (error) {
+              console.error(`Error saving image for prompt: ${prompt.substring(0, 30)}...`, error);
             }
-          } catch (error) {
-            console.error(`Error saving image for prompt: ${prompt.substring(0, 30)}...`, error);
           }
         }
       }
-    }
-  };
-  
-  saveImagesToPermanentMessage();
-}, [messages, messagesWithImages]);
+    };
+    
+    saveImagesToPermanentMessage();
+  }, [messages, messagesWithImages]);
   
   const handleCopy = (content) => {
     navigator.clipboard.writeText(content);
@@ -473,17 +484,64 @@ useEffect(() => {
     }
   };
   
-  // Initialization loading state
+  // Initialization loading state - using skeleton now
   if (isInitializing) {
     return (
-      <Layout>
-        <Box 
-          display="flex" 
-          justifyContent="center" 
-          alignItems="center" 
-          height="100vh"
-        >
-          <Spinner size="xl" />
+      <Layout hideNav={isMobile}>
+        <Box bg={bgColor} minH="100vh">
+          <Container maxW={containerMaxW} px={0} h="100vh" display="flex" flexDirection="column">
+            {/* Header Skeleton */}
+            <Flex 
+              p={3} 
+              borderBottom="1px solid" 
+              borderColor={borderColor} 
+              align="center"
+              position="sticky"
+              top={0}
+              bg={headerBgColor}
+              zIndex={10}
+            >
+              <Skeleton height="40px" width="40px" borderRadius="full" mr={3} />
+              <VStack align="start" spacing={1} flex="1">
+                <Skeleton height="20px" width="150px" />
+                <Skeleton height="16px" width="200px" />
+              </VStack>
+            </Flex>
+            
+            {/* Messages Skeleton */}
+            <Box flex="1" overflowY="auto" p={4}>
+              <VStack spacing={6} align="stretch">
+                <HStack align="flex-start" spacing={3}>
+                  <Skeleton height="40px" width="40px" borderRadius="full" />
+                  <VStack align="start" spacing={2} flex="1">
+                    <Skeleton height="20px" width="80px" />
+                    <Skeleton height="60px" width="100%" borderRadius="md" />
+                  </VStack>
+                </HStack>
+                
+                <HStack align="flex-start" spacing={3} alignSelf="flex-end">
+                  <VStack align="end" spacing={2} flex="1">
+                    <Skeleton height="20px" width="80px" />
+                    <Skeleton height="40px" width="80%" borderRadius="md" />
+                  </VStack>
+                  <Skeleton height="40px" width="40px" borderRadius="full" />
+                </HStack>
+                
+                <HStack align="flex-start" spacing={3}>
+                  <Skeleton height="40px" width="40px" borderRadius="full" />
+                  <VStack align="start" spacing={2} flex="1">
+                    <Skeleton height="20px" width="80px" />
+                    <Skeleton height="80px" width="100%" borderRadius="md" />
+                  </VStack>
+                </HStack>
+              </VStack>
+            </Box>
+            
+            {/* Input Skeleton */}
+            <Box p={4} borderTop="1px solid" borderColor={borderColor}>
+              <Skeleton height="50px" width="100%" borderRadius="md" />
+            </Box>
+          </Container>
         </Box>
       </Layout>
     );
@@ -492,12 +550,13 @@ useEffect(() => {
   // Bot not found state
   if (!bot && !error) {
     return (
-      <Layout>
+      <Layout hideNav={isMobile}>
         <Box 
           display="flex" 
           justifyContent="center" 
           alignItems="center" 
           height="100vh"
+          bg={bgColor}
         >
           <Spinner size="xl" />
         </Box>
@@ -505,132 +564,259 @@ useEffect(() => {
     );
   }
   
-   // Main chat return
-   return (
-    <Layout currentView="chat">
-      <Box 
-        display="flex" 
-        flexDirection="column" 
-        height="100vh"
-      >
-        {/* Error Alert */}
-        {error && (
-          <Alert status="error" mb={2}>
-            <AlertIcon />
-            <AlertTitle>{error}</AlertTitle>
-          </Alert>
-        )}
-        
-        {/* Bot Header */}
-        {bot && (
-          <HStack 
-            p={2} 
-            spacing={3} 
+  // Main chat return
+  return (
+    <Layout hideNav={isMobile}>
+      <Box bg={bgColor} minH="100vh">
+        <Container maxW={containerMaxW} px={0} h="100vh" display="flex" flexDirection="column">
+          {/* Mobile back button and header */}
+          <Flex 
+            p={3} 
             borderBottom="1px solid" 
-            borderColor="gray.200" 
+            borderColor={borderColor} 
             align="center"
+            position="sticky"
+            top={0}
+            bg={headerBgColor}
+            zIndex={10}
+            h="60px"
           >
+            {isMobile && (
+              <IconButton
+                icon={<FiArrowLeft />}
+                variant="ghost"
+                size="sm"
+                mr={2}
+                onClick={() => router.push('/chats')}
+                aria-label="Back to chats"
+              />
+            )}
+            
             <Avatar 
-              src={bot.avatar} 
-              name={bot.name} 
-              size="md" 
+              src={bot?.avatar} 
+              name={bot?.name} 
+              size="sm" 
+              mr={3} 
+              bg={avatarBg}
             />
-            <VStack align="start" spacing={0}>
-              <Text fontWeight="bold">{bot.name}</Text>
+            
+            <VStack align="start" spacing={0} flex="1">
+              <Text fontWeight="bold" fontSize="sm">
+                {bot?.name || "Chat"}
+              </Text>
               <Text 
-                fontSize="sm" 
+                fontSize="xs" 
                 color="gray.500"
+                noOfLines={1}
               >
-                {bot.description}
+                {bot?.description}
               </Text>
             </VStack>
-          </HStack>
-        )}
-        
-        {/* Messages Container */}
-        <Box 
-          flex={1} 
-          overflowY="auto" 
-          p={2} 
-          display="flex" 
-          flexDirection="column"
-        >
-          {/* Empty State */}
-          {messages.length === 0 && !isLoading ? (
-            <VStack 
-              justify="center" 
-              align="center" 
-              height="100%" 
-              color="gray.500" 
-              textAlign="center"
-              spacing={4}
-            >
-              <Text fontSize="xl">Start a conversation</Text>
-              <Text fontSize="md">
-                Try asking a question or exploring the bot's capabilities
-              </Text>
-            </VStack>
-          ) : (
-            <VStack spacing={4} align="stretch" width="full">
-              {/* Regular Messages */}
-              {messages.map((message) => (
-                <ChatMessage
-                  key={message.id}
-                  message={message}
-                  onCopy={handleCopy}
-                  onRegenerate={handleRegenerate}
-                  onSpeak={handleSpeak}
-                  onImageGenerated={handleImageGenerated}
-                  bot={bot}
-                  localImages={messagesWithImages}
-                />
-              ))}
-              
-              {/* Streaming Message */}
-              {streamingMessage && (
-                <ChatMessage
-                  message={streamingMessage}
-                  onCopy={() => {}}
-                  onRegenerate={() => {}}
-                  onSpeak={() => {}}
-                  bot={bot}
-                />
-              )}
-              
-              {/* Loading Indicator */}
-              {isLoading && !streamingMessage && (
-                <HStack 
-                  align="center" 
-                  spacing={2} 
-                  mb={3}
-                >
-                  <Avatar 
-                    src={bot?.avatar} 
-                    name={bot?.name} 
-                    size="sm" 
-                  />
-                  <Spinner size="sm" />
-                </HStack>
-              )}
-              
-              {/* Scroll Anchor */}
-              <Box ref={messagesEndRef} />
-            </VStack>
+            
+            <Tooltip label="Bot Information">
+              <IconButton
+                icon={<FiInfo />}
+                variant="ghost"
+                size="sm"
+                onClick={openDrawer}
+                aria-label="Bot information"
+              />
+            </Tooltip>
+          </Flex>
+          
+          {/* Error Alert */}
+          {error && (
+            <Alert status="error" mb={0}>
+              <AlertIcon />
+              <AlertTitle fontSize="sm">{error}</AlertTitle>
+              <IconButton
+                icon={<FiX />}
+                variant="ghost"
+                size="sm"
+                onClick={() => setError(null)}
+                ml="auto"
+                aria-label="Dismiss error"
+              />
+            </Alert>
           )}
-        </Box>
-        
-        {/* Chat Input */}
-        <ChatInput
-          onSendMessage={handleSendMessage}
-          isLoading={isLoading}
-          tokenUsage={tokenUsage}
-          isStreaming={!!streamingMessage}
-          onCancelStreaming={() => setStreamingMessage(null)}
-        />
+          
+          {/* Messages Container */}
+          <Box 
+            flex="1" 
+            overflowY="auto" 
+            py={4}
+            px={{ base: 2, md: 4 }}
+            id="messages-container"
+          >
+            {/* Empty State */}
+            {messages.length === 0 && !isLoading ? (
+              <VStack 
+                justify="center" 
+                align="center" 
+                height="100%" 
+                spacing={6}
+                px={4}
+              >
+                <Avatar 
+                  src={bot?.avatar} 
+                  name={bot?.name} 
+                  size="xl" 
+                  bg={avatarBg}
+                />
+                <VStack spacing={2}>
+                  <Text fontSize="lg" fontWeight="bold">
+                    Chat with {bot?.name}
+                  </Text>
+                  <Text fontSize="sm" color="gray.500" textAlign="center">
+                    {bot?.description || "Ask me anything, and I'll assist you."}
+                  </Text>
+                </VStack>
+                
+                <Divider my={2} />
+                
+                <VStack spacing={3} width="100%" maxW="500px">
+                  {['What can you help me with?', 'Tell me more about yourself', 'How does this work?'].map((suggestion, i) => (
+                    <Button 
+                      key={i}
+                      variant="outline" 
+                      size="sm"
+                      width="full"
+                      justifyContent="flex-start"
+                      onClick={() => handleSendMessage(suggestion)}
+                    >
+                      {suggestion}
+                    </Button>
+                  ))}
+                </VStack>
+              </VStack>
+            ) : (
+              <VStack spacing={6} align="stretch" width="full">
+                {/* Regular Messages */}
+                {messages.map((message) => (
+                  <ChatMessage
+                    key={message.id}
+                    message={message}
+                    onCopy={handleCopy}
+                    onRegenerate={handleRegenerate}
+                    onSpeak={handleSpeak}
+                    onImageGenerated={handleImageGenerated}
+                    bot={bot}
+                    localImages={messagesWithImages}
+                  />
+                ))}
+                
+                {/* Streaming Message */}
+                {streamingMessage && (
+                  <ChatMessage
+                    message={streamingMessage}
+                    onCopy={() => {}}
+                    onRegenerate={() => {}}
+                    onSpeak={() => {}}
+                    bot={bot}
+                    isStreaming={true}
+                  />
+                )}
+                
+                {/* Loading Indicator */}
+                {isLoading && !streamingMessage && (
+                  <HStack 
+                    align="flex-start" 
+                    spacing={3}
+                    pl={2}
+                  >
+                    <Avatar 
+                      src={bot?.avatar} 
+                      name={bot?.name} 
+                      size="sm" 
+                      bg={avatarBg}
+                    />
+                    <VStack align="flex-start" spacing={1} pt={1}>
+                      <Spinner size="sm" />
+                      <Text fontSize="xs" color="gray.500">
+                        Thinking...
+                      </Text>
+                    </VStack>
+                  </HStack>
+                )}
+                
+                {/* Scroll Anchor */}
+                <Box ref={messagesEndRef} />
+              </VStack>
+            )}
+          </Box>
+          
+          {/* Chat Input */}
+          <Box 
+            p={{ base: 2, md: 3 }} 
+            borderTop="1px solid" 
+            borderColor={borderColor}
+            bg={bgColor}
+          >
+            <ChatInput
+              onSendMessage={handleSendMessage}
+              isLoading={isLoading}
+              tokenUsage={tokenUsage}
+              isStreaming={!!streamingMessage}
+              onCancelStreaming={() => setStreamingMessage(null)}
+            />
+          </Box>
+        </Container>
       </Box>
+      
+      {/* Bot Information Drawer (Mobile) */}
+      <Drawer
+        isOpen={isOpen}
+        placement="right"
+        onClose={closeDrawer}
+        size={isMobile ? "full" : "md"}
+      >
+        <DrawerOverlay />
+        <DrawerContent>
+          <DrawerCloseButton />
+          <DrawerHeader borderBottomWidth="1px">
+            Bot Information
+          </DrawerHeader>
+          
+          <DrawerBody py={4}>
+            <VStack spacing={6} align="center">
+              <Avatar 
+                src={bot?.avatar} 
+                name={bot?.name} 
+                size="xl" 
+                bg={avatarBg}
+              />
+              
+              <VStack spacing={2}>
+                <Text fontSize="xl" fontWeight="bold">
+                  {bot?.name}
+                </Text>
+                <Text color="gray.500" textAlign="center">
+                  {bot?.description}
+                </Text>
+              </VStack>
+              
+              {bot?.capabilities && (
+                <>
+                  <Divider />
+                  <Text fontWeight="bold" alignSelf="flex-start">
+                    Capabilities
+                  </Text>
+                  <VStack align="stretch" width="full" spacing={2}>
+                    {bot.capabilities.map((capability, i) => (
+                      <HStack key={i} alignItems="flex-start">
+                        <Box w="24px" textAlign="center">•</Box>
+                        <Text flex="1">{capability}</Text>
+                      </HStack>
+                    ))}
+                  </VStack>
+                </>
+              )}
+            </VStack>
+          </DrawerBody>
+        </DrawerContent>
+      </Drawer>
     </Layout>
   );
-
 }
 
 export default withAuth(Chat);
