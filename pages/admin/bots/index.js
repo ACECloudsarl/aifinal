@@ -46,7 +46,7 @@ import {
   EditIcon, 
   DeleteIcon 
 } from '@chakra-ui/icons';
-import AdminLayout from '@/components/admin/AdminLayout';
+import AdminLayout from '@/adm_components/AdminLayout';
 import withAuth from '../../../lib/withAuth';
 
 function AdminBots() {

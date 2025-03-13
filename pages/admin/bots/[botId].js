@@ -1,4 +1,4 @@
-// pages/admin/bots/[botId].js - Modified to add voice selection
+// pages/admin/bots/[botId].js
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import {
@@ -9,25 +9,46 @@ import {
   Input,
   Textarea,
   Select,
-  Option,
   Card,
-  Sheet,
-  Typography,
-  CircularProgress,
-  Divider,
+  CardBody,
+  CardHeader,
+  CardFooter,
+  Text,
+  Spinner,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
   Tabs,
   TabList,
+  TabPanels,
   Tab,
   TabPanel,
-  Alert,
+  Flex,
+  VStack,
+  HStack,
+  Image,
+  useColorModeValue,
+  Divider,
+  useToast,
   AspectRatio,
   IconButton,
-} from '@mui/joy';
-import { Save, ArrowLeft, Image, Bot, FileText, Cpu, Volume2, VolumeX } from 'lucide-react';
-import AdminLayout from '@/adm_components/AdminLayout';
+  Tooltip
+} from '@chakra-ui/react';
+import { ArrowBackIcon, CheckIcon } from '@chakra-ui/icons';
+import { 
+  Bot, 
+  Image as ImageIcon, 
+  Cpu, 
+  FileText, 
+  Volume2, 
+  VolumeX
+} from 'lucide-react';
+import AdminLayout from '@/components/admin/AdminLayout';
 import withAuth from '../../../lib/withAuth';
-import voiceService from '../../../services/VoiceService';
+import voiceService from '@/lib/VoiceService';
 
+// Model options for the bot
 const modelOptions = [
   { value: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free", label: "Llama 3.3 70B (Advanced)" },
   { value: "meta-llama/Llama-3.3-8B-Instruct-Turbo-Free", label: "Llama 3.3 8B (Standard)" },
@@ -36,6 +57,7 @@ const modelOptions = [
   { value: "gpt-4o-mini", label: "GPT-4o Mini (If integrated)" },
 ];
 
+// Category options for the bot
 const categoryOptions = [
   "Horror", "Professional", "Food", "Fashion", "Art", "Health", 
   "Gaming", "Programming", "Business", "Wellness", "Education",
@@ -44,15 +66,16 @@ const categoryOptions = [
 
 function AdminBotEdit() {
   const router = useRouter();
+  const toast = useToast();
   const { botId } = router.query;
   const isNewBot = botId === 'new';
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState(null);
   const [voices, setVoices] = useState([]);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [tabIndex, setTabIndex] = useState(0);
   
   const [botData, setBotData] = useState({
     name: '',
@@ -63,6 +86,10 @@ function AdminBotEdit() {
     prompt: 'You are a helpful AI assistant.',
     voiceId: null,
   });
+  
+  // Colors
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
   
   // Initialize voice service and load data
   useEffect(() => {
@@ -94,7 +121,7 @@ function AdminBotEdit() {
     } else if (router.isReady && isNewBot) {
       setLoading(false);
     }
-  }, [router.isReady, botId]);
+  }, [router.isReady, botId, isNewBot]);
   
   // Load available voices
   useEffect(() => {
@@ -104,6 +131,13 @@ function AdminBotEdit() {
         setVoices(voicesData);
       } catch (error) {
         console.error('Error loading voices:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load voices",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
       }
     };
     
@@ -150,7 +184,6 @@ function AdminBotEdit() {
     e.preventDefault();
     setSaving(true);
     setError(null);
-    setSuccessMessage(null);
     
     try {
       const url = isNewBot 
@@ -174,16 +207,22 @@ function AdminBotEdit() {
       
       const savedBot = await response.json();
       
+      toast({
+        title: isNewBot ? "Bot created" : "Bot updated",
+        description: isNewBot 
+          ? `"${savedBot.name}" has been created successfully` 
+          : `"${savedBot.name}" has been updated successfully`,
+        status: "success",
+        duration: 5000,
+        isClosable: true,
+      });
+      
       if (isNewBot) {
         // Redirect to edit page for the newly created bot
         router.push(`/admin/bots/${savedBot.id}`);
       } else {
         // Update the form with the latest data
         setBotData(savedBot);
-        // Show success message
-        setSuccessMessage('Bot saved successfully');
-        // Automatically hide success message after 3 seconds
-        setTimeout(() => setSuccessMessage(null), 3000);
       }
     } catch (error) {
       console.error('Error saving bot:', error);
@@ -206,266 +245,323 @@ function AdminBotEdit() {
       await voiceService.speak(previewText, botData.voiceId);
     } catch (error) {
       console.error('Error playing voice preview:', error);
+      toast({
+        title: "Error",
+        description: "Failed to play voice preview",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
     }
   };
   
   if (loading) {
     return (
       <AdminLayout title={isNewBot ? 'Add New Bot' : 'Edit Bot'}>
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-          <CircularProgress />
-        </Box>
+        <Flex justify="center" align="center" minH="300px">
+          <VStack spacing={4}>
+            <Spinner size="xl" thickness="4px" color="purple.500" />
+            <Text>Loading bot data...</Text>
+          </VStack>
+        </Flex>
       </AdminLayout>
     );
   }
   
   return (
     <AdminLayout title={isNewBot ? 'Add New Bot' : `Edit Bot: ${botData.name}`}>
-      <Box sx={{ mb: 3 }}>
+      <Box mb={5}>
         <Button 
-          variant="outlined" 
-          color="neutral" 
-          startDecorator={<ArrowLeft size={18} />}
+          leftIcon={<ArrowBackIcon />} 
           onClick={() => router.push('/admin/bots')}
+          variant="outline"
         >
           Back to Bots List
         </Button>
       </Box>
       
       {error && (
-        <Alert color="danger" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
-      
-      {successMessage && (
-        <Alert color="success" sx={{ mb: 3 }}>
-          {successMessage}
+        <Alert status="error" mb={4} borderRadius="md">
+          <AlertIcon />
+          <AlertTitle>{error}</AlertTitle>
         </Alert>
       )}
       
       <form onSubmit={handleSubmit}>
-        <Box sx={{ mb: 3 }}>
-          <Tabs defaultValue="basic">
-            <TabList>
-              <Tab value="basic" startDecorator={<Bot />}>Basic Info</Tab>
-              <Tab value="appearance" startDecorator={<Image />}>Appearance</Tab>
-              <Tab value="model" startDecorator={<Cpu />}>Model & AI</Tab>
-              <Tab value="voice" startDecorator={<Volume2 />}>Voice</Tab>
-              <Tab value="prompt" startDecorator={<FileText />}>Prompt</Tab>
-            </TabList>
-            
-            <Sheet
-              variant="outlined"
-              sx={{ 
-                mt: 2, 
-                p: 3, 
-                borderRadius: 'md',
-              }}
+        <Card variant="outline" bg={cardBg} mb={5}>
+          <CardBody p={0}>
+            <Tabs 
+              colorScheme="purple" 
+              size="md" 
+              index={tabIndex} 
+              onChange={setTabIndex}
             >
-              <TabPanel value="basic">
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <FormControl required>
-                    <FormLabel>Bot Name</FormLabel>
-                    <Input
-                      name="name"
-                      value={botData.name}
-                      onChange={handleChange}
-                      placeholder="Enter bot name"
-                    />
-                  </FormControl>
-                  
-                  <FormControl required>
-                    <FormLabel>Description</FormLabel>
-                    <Textarea
-                      name="description"
-                      value={botData.description}
-                      onChange={handleChange}
-                      placeholder="Enter bot description"
-                      minRows={3}
-                      maxRows={5}
-                    />
-                  </FormControl>
-                  
-                  <FormControl required>
-                    <FormLabel>Category</FormLabel>
-                    <Select
-                      name="category"
-                      value={botData.category}
-                      onChange={(_, value) => handleSelectChange('category', value)}
-                    >
-                      {categoryOptions.map(category => (
-                        <Option key={category} value={category}>
-                          {category}
-                        </Option>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Box>
-              </TabPanel>
+              <TabList px={4}>
+                <Tab>
+                  <HStack spacing={2}>
+                    <Bot size={16} />
+                    <Text>Basic Info</Text>
+                  </HStack>
+                </Tab>
+                <Tab>
+                  <HStack spacing={2}>
+                    <ImageIcon size={16} />
+                    <Text>Appearance</Text>
+                  </HStack>
+                </Tab>
+                <Tab>
+                  <HStack spacing={2}>
+                    <Cpu size={16} />
+                    <Text>Model & AI</Text>
+                  </HStack>
+                </Tab>
+                <Tab>
+                  <HStack spacing={2}>
+                    <Volume2 size={16} />
+                    <Text>Voice</Text>
+                  </HStack>
+                </Tab>
+                <Tab>
+                  <HStack spacing={2}>
+                    <FileText size={16} />
+                    <Text>Prompt</Text>
+                  </HStack>
+                </Tab>
+              </TabList>
               
-              <TabPanel value="appearance">
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <FormControl required>
-                    <FormLabel>Avatar URL</FormLabel>
-                    <Input
-                      name="avatar"
-                      value={botData.avatar}
-                      onChange={handleChange}
-                      placeholder="Enter avatar URL or path"
-                    />
-                  </FormControl>
-                  
-                  <Typography level="body-sm" sx={{ mb: 1 }}>
-                    Preview:
-                  </Typography>
-                  
-                  <Box sx={{ width: 100, height: 100 }}>
-                    <AspectRatio
-                      ratio="1/1"
-                      sx={{ 
-                        width: 100, 
-                        borderRadius: 'md',
-                        border: '1px solid',
-                        borderColor: 'divider',
-                      }}
-                    >
-                      <img
-                        src={botData.avatar}
-                        alt="Bot avatar preview"
-                        style={{ objectFit: 'cover' }}
-                        onError={(e) => {
-                          e.target.src = '/images/default-bot.png';
-                        }}
+              <TabPanels p={0}>
+                {/* Basic Info Panel */}
+                <TabPanel p={5}>
+                  <VStack spacing={5} align="stretch">
+                    <FormControl isRequired>
+                      <FormLabel>Bot Name</FormLabel>
+                      <Input
+                        name="name"
+                        value={botData.name}
+                        onChange={handleChange}
+                        placeholder="Enter bot name"
                       />
-                    </AspectRatio>
-                  </Box>
-                </Box>
-              </TabPanel>
-              
-              <TabPanel value="model">
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <FormControl required>
-                    <FormLabel>AI Model</FormLabel>
-                    <Select
-                      name="model"
-                      value={botData.model}
-                      onChange={(_, value) => handleSelectChange('model', value)}
-                    >
-                      {modelOptions.map(model => (
-                        <Option key={model.value} value={model.value}>
-                          {model.label}
-                        </Option>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  
-                  <Alert color="info" sx={{ mt: 2 }}>
-                    <Typography level="body-sm">
-                      The selected model will be used for all conversations with this bot.
-                      Models with larger parameter sizes generally provide more advanced capabilities but may have higher latency or usage costs.
-                    </Typography>
-                  </Alert>
-                </Box>
-              </TabPanel>
-              
-              <TabPanel value="voice">
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <FormControl>
-                    <FormLabel>Default Voice</FormLabel>
-                    <Select
-                      name="voiceId"
-                      value={botData.voiceId || ''}
-                      onChange={(_, value) => handleSelectChange('voiceId', value)}
-                      placeholder="Select a default voice"
-                      endDecorator={
-                        botData.voiceId && (
-                          <IconButton
-                            size="sm"
-                            variant="soft"
-                            color={isPlaying ? "danger" : "primary"}
-                            onClick={handlePreviewVoice}
-                            sx={{ mr: 1 }}
-                          >
-                            {isPlaying ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                          </IconButton>
-                        )
-                      }
-                    >
-                      <Option value="">No default voice</Option>
-                      {voices.map(voice => (
-                        <Option key={voice.id} value={voice.id}>
-                          {voice.flag && `${voice.flag} `}{voice.name} - {voice.description}
-                        </Option>
-                      ))}
-                    </Select>
-                    <Typography level="body-sm" sx={{ mt: 1, color: 'text.tertiary' }}>
-                      Setting a default voice will automatically use this voice for the bot's responses.
-                      Users can still override this in their personal settings.
-                    </Typography>
-                  </FormControl>
-                  
-                  <Alert color="info" sx={{ mt: 2 }}>
-                    <Typography level="body-sm">
-                      Voice selection affects how the bot sounds when using text-to-speech.
-                      Choose a voice that matches the bot's personality and purpose.
-                    </Typography>
-                  </Alert>
-                  
-                  {voices.length === 0 && (
-                    <Alert color="warning">
-                      <Typography level="body-sm">
-                        No voices available. Please add voices in the Voice Management section.
-                      </Typography>
+                    </FormControl>
+                    
+                    <FormControl isRequired>
+                      <FormLabel>Description</FormLabel>
+                      <Textarea
+                        name="description"
+                        value={botData.description}
+                        onChange={handleChange}
+                        placeholder="Enter bot description"
+                        minH="100px"
+                      />
+                    </FormControl>
+                    
+                    <FormControl isRequired>
+                      <FormLabel>Category</FormLabel>
+                      <Select
+                        name="category"
+                        value={botData.category}
+                        onChange={handleChange}
+                        placeholder="Select category"
+                      >
+                        {categoryOptions.map(category => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </VStack>
+                </TabPanel>
+                
+                {/* Appearance Panel */}
+                <TabPanel p={5}>
+                  <VStack spacing={5} align="stretch">
+                    <FormControl isRequired>
+                      <FormLabel>Avatar URL</FormLabel>
+                      <Input
+                        name="avatar"
+                        value={botData.avatar}
+                        onChange={handleChange}
+                        placeholder="Enter avatar URL or path"
+                      />
+                    </FormControl>
+                    
+                    <Box>
+                      <Text mb={2}>Preview:</Text>
+                      <HStack spacing={4} align="start">
+                        <Box 
+                          width="100px" 
+                          height="100px" 
+                          borderWidth="1px" 
+                          borderColor={borderColor} 
+                          borderRadius="md" 
+                          overflow="hidden"
+                        >
+                          <AspectRatio ratio={1}>
+                            <Image
+                              src={botData.avatar}
+                              alt="Bot avatar preview"
+                              objectFit="cover"
+                              onError={(e) => {
+                                e.target.src = '/images/default-bot.png';
+                              }}
+                            />
+                          </AspectRatio>
+                        </Box>
+                        
+                        <Box flex="1">
+                          <Text fontSize="sm" color="gray.500">
+                            Avatar images should be square for best results. Recommended size: 400x400 pixels.
+                          </Text>
+                        </Box>
+                      </HStack>
+                    </Box>
+                  </VStack>
+                </TabPanel>
+                
+                {/* Model & AI Panel */}
+                <TabPanel p={5}>
+                  <VStack spacing={5} align="stretch">
+                    <FormControl isRequired>
+                      <FormLabel>AI Model</FormLabel>
+                      <Select
+                        name="model"
+                        value={botData.model}
+                        onChange={handleChange}
+                        placeholder="Select model"
+                      >
+                        {modelOptions.map(model => (
+                          <option key={model.value} value={model.value}>
+                            {model.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    
+                    <Alert status="info" borderRadius="md">
+                      <AlertIcon />
+                      <Box>
+                        <AlertTitle mb={1}>Model Information</AlertTitle>
+                        <AlertDescription fontSize="sm">
+                        Voice selection affects how the bot sounds when using text-to-speech.
+                        Choose a voice that matches the bot's personality and purpose.
+                      </AlertDescription>
                     </Alert>
-                  )}
-                </Box>
-              </TabPanel>
-              
-              <TabPanel value="prompt">
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <FormControl>
-                    <FormLabel>System Prompt</FormLabel>
-                    <Textarea
-                      name="prompt"
-                      value={botData.prompt}
-                      onChange={handleChange}
-                      placeholder="Enter system prompt for this bot"
-                      minRows={10}
-                      maxRows={20}
-                      sx={{ fontFamily: 'monospace' }}
-                    />
-                  </FormControl>
-                  
-                  <Alert color="warning" sx={{ mt: 2 }}>
-                    <Typography level="body-sm">
-                      The system prompt defines the bot's personality, knowledge, and behavior.
-                      Write detailed instructions to guide the AI on how to respond to users.
-                      Our system will automatically add language handling and image generation capabilities.
-                    </Typography>
-                  </Alert>
-                </Box>
-              </TabPanel>
-            </Sheet>
-          </Tabs>
-        </Box>
+                    
+                    {voices.length === 0 && (
+                      <Alert status="warning" borderRadius="md">
+                        <AlertIcon />
+                        <AlertDescription>
+                          No voices available. Please add voices in the Voice Management section.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </VStack>
+                </TabPanel>
+                
+                {/* Prompt Panel */}
+                <TabPanel p={5}>
+                  <VStack spacing={5} align="stretch">
+                    <FormControl>
+                      <FormLabel>System Prompt</FormLabel>
+                      <Textarea
+                        name="prompt"
+                        value={botData.prompt}
+                        onChange={handleChange}
+                        placeholder="Enter system prompt for this bot"
+                        fontFamily="mono"
+                        h="300px"
+                        fontSize="sm"
+                      />
+                    </FormControl>
+                    
+                    <Alert status="warning" borderRadius="md">
+                      <AlertIcon />
+                      <Box>
+                        <AlertTitle>About System Prompts</AlertTitle>
+                        <AlertDescription fontSize="sm">
+                          The system prompt defines the bot's personality, knowledge, and behavior.
+                          Write detailed instructions to guide the AI on how to respond to users.
+                          Our system will automatically add language handling and image generation capabilities.
+                        </AlertDescription>
+                      </Box>
+                    </Alert>
+                  </VStack>
+                </TabPanel>
+              </TabPanels>
+            </Tabs>
+          </CardBody>
+        </Card>
         
-        <Divider sx={{ my: 3 }} />
-        
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Flex justify="space-between" mt={6}>
+          <Button 
+            variant="outline" 
+            onClick={() => router.push('/admin/bots')}
+          >
+            Cancel
+          </Button>
+          
           <Button
             type="submit"
-            color="primary"
-            size="lg"
-            startDecorator={<Save size={18} />}
-            loading={saving}
+            colorScheme="purple"
+            isLoading={saving}
+            loadingText="Saving..."
           >
-            {saving ? 'Saving...' : isNewBot ? 'Create Bot' : 'Save Changes'}
+            {isNewBot ? "Create Bot" : "Save Changes"}
           </Button>
-        </Box>
+        </Flex>
       </form>
     </AdminLayout>
   );
 }
 
-export default withAuth(AdminBotEdit);
+export default withAuth(AdminBotEdit);  The selected model will be used for all conversations with this bot.
+                          Models with larger parameter sizes generally provide more advanced capabilities but may have higher latency or usage costs.
+                        </AlertDescription>
+                      </Box>
+                    </Alert>
+                  </VStack>
+                </TabPanel>
+                
+                {/* Voice Panel */}
+                <TabPanel p={5}>
+                  <VStack spacing={5} align="stretch">
+                    <FormControl>
+                      <FormLabel>Default Voice</FormLabel>
+                      <Select
+                        name="voiceId"
+                        value={botData.voiceId || ''}
+                        onChange={handleChange}
+                        placeholder="Select a default voice"
+                      >
+                        <option value="">No default voice</option>
+                        {voices.map(voice => (
+                          <option key={voice.id} value={voice.id}>
+                            {voice.flag && `${voice.flag} `}{voice.name} - {voice.description}
+                          </option>
+                        ))}
+                      </Select>
+                      
+                      {botData.voiceId && (
+                        <HStack mt={3}>
+                          <Button
+                            leftIcon={isPlaying ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                            size="sm"
+                            colorScheme={isPlaying ? "red" : "purple"}
+                            onClick={handlePreviewVoice}
+                          >
+                            {isPlaying ? "Stop" : "Preview Voice"}
+                          </Button>
+                        </HStack>
+                      )}
+                      
+                      <Text fontSize="sm" color="gray.500" mt={2}>
+                        Setting a default voice will automatically use this voice for the bot's responses.
+                        Users can still override this in their personal settings.
+                      </Text>
+                    </FormControl>
+                    
+                    <Alert status="info" borderRadius="md">
+                      <AlertIcon />
+                      <AlertDescription fontSize="sm">
+                      </AlertDescription>
+                      </Alert>

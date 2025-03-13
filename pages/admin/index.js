@@ -116,114 +116,122 @@ function AdminDashboard() {
     <AdminLayout title="Dashboard">
       {/* Stats Cards */}
       <SimpleGrid 
-        columns={{ base: 1, md: 2, lg: 4 }} 
-        spacing={5} 
-        mb={8}
-      >
-        {/* Total Users Card */}
-        <Card boxShadow="sm" bg={cardBg}>
-          <CardBody>
-            <Flex align="center">
-              <Box
-                p={3}
-                borderRadius="lg"
-                bg={iconBg1}
-                mr={4}
-              >
-                <Icon as={Users} boxSize={6} color={iconColor1} />
-              </Box>
-              <Box>
-                <StatLabel fontWeight="medium">Total Users</StatLabel>
-                <StatNumber fontSize="3xl">{formatNumber(stats.totalUsers)}</StatNumber>
-                <StatHelpText>
-                  <HStack>
-                    <Icon as={ArrowUpIcon} color="green.500" />
-                    <Text>12% more than last month</Text>
-                  </HStack>
-                </StatHelpText>
-              </Box>
-            </Flex>
-          </CardBody>
-        </Card>
-        
-        {/* Active Bots Card */}
-        <Card boxShadow="sm" bg={cardBg}>
-          <CardBody>
-            <Flex align="center">
-              <Box
-                p={3}
-                borderRadius="lg"
-                bg={iconBg2}
-                mr={4}
-              >
-                <Icon as={Bot} boxSize={6} color={iconColor2} />
-              </Box>
-              <Box>
-                <StatLabel fontWeight="medium">Active Bots</StatLabel>
-                <StatNumber fontSize="3xl">{formatNumber(stats.totalBots)}</StatNumber>
-                <StatHelpText>
-                  <HStack>
-                    <Icon as={ArrowUpIcon} color="green.500" />
-                    <Text>3 new this week</Text>
-                  </HStack>
-                </StatHelpText>
-              </Box>
-            </Flex>
-          </CardBody>
-        </Card>
-        
-        {/* Total Chats Card */}
-        <Card boxShadow="sm" bg={cardBg}>
-          <CardBody>
-            <Flex align="center">
-              <Box
-                p={3}
-                borderRadius="lg"
-                bg={iconBg3}
-                mr={4}
-              >
-                <Icon as={MessageSquare} boxSize={6} color={iconColor3} />
-              </Box>
-              <Box>
-                <StatLabel fontWeight="medium">Total Chats</StatLabel>
-                <StatNumber fontSize="3xl">{formatNumber(stats.totalChats)}</StatNumber>
-                <StatHelpText>
-                  <HStack>
-                    <Icon as={TrendingUp} boxSize={3} color="green.500" />
-                    <Text>+18% this month</Text>
-                  </HStack>
-                </StatHelpText>
-              </Box>
-            </Flex>
-          </CardBody>
-        </Card>
-        
-        {/* Active Today Card */}
-        <Card boxShadow="sm" bg={cardBg}>
-          <CardBody>
-            <Flex align="center">
-              <Box
-                p={3}
-                borderRadius="lg"
-                bg={iconBg4}
-                mr={4}
-              >
-                <Icon as={Cpu} boxSize={6} color={iconColor4} />
-              </Box>
-              <Box>
-                <StatLabel fontWeight="medium">Active Today</StatLabel>
-                <StatNumber fontSize="3xl">{formatNumber(stats.activeUsers)}</StatNumber>
-                <StatHelpText>
-                  <HStack>
-                    <Icon as={Calendar} boxSize={3} color="blue.500" />
-                    <Text>Daily active users</Text>
-                  </HStack>
-                </StatHelpText>
-              </Box>
-            </Flex>
-          </CardBody>
-        </Card>
-      </SimpleGrid>
+  columns={{ base: 1, md: 2, lg: 4 }} 
+  spacing={5} 
+  mb={8}
+>
+  {/* Total Users Card */}
+  <Card boxShadow="sm" bg={cardBg}>
+    <CardBody>
+      <Flex align="center">
+        <Box
+          p={3}
+          borderRadius="lg"
+          bg={iconBg1}
+          mr={4}
+        >
+          <Icon as={Users} boxSize={6} color={iconColor1} />
+        </Box>
+        <Box flex="1">
+          <Stat>
+            <StatLabel fontWeight="medium">Total Users</StatLabel>
+            <StatNumber fontSize="3xl">{formatNumber(stats.totalUsers)}</StatNumber>
+            <StatHelpText>
+              <HStack>
+                <Icon as={ArrowUpIcon} color="green.500" />
+                <Text>12% more than last month</Text>
+              </HStack>
+            </StatHelpText>
+          </Stat>
+        </Box>
+      </Flex>
+    </CardBody>
+  </Card>
+  
+  {/* Active Bots Card */}
+  <Card boxShadow="sm" bg={cardBg}>
+    <CardBody>
+      <Flex align="center">
+        <Box
+          p={3}
+          borderRadius="lg"
+          bg={iconBg2}
+          mr={4}
+        >
+          <Icon as={Bot} boxSize={6} color={iconColor2} />
+        </Box>
+        <Box flex="1">
+          <Stat>
+            <StatLabel fontWeight="medium">Active Bots</StatLabel>
+            <StatNumber fontSize="3xl">{formatNumber(stats.totalBots)}</StatNumber>
+            <StatHelpText>
+              <HStack>
+                <Icon as={ArrowUpIcon} color="green.500" />
+                <Text>3 new this week</Text>
+              </HStack>
+            </StatHelpText>
+          </Stat>
+        </Box>
+      </Flex>
+    </CardBody>
+  </Card>
+  
+  {/* Total Chats Card */}
+  <Card boxShadow="sm" bg={cardBg}>
+    <CardBody>
+      <Flex align="center">
+        <Box
+          p={3}
+          borderRadius="lg"
+          bg={iconBg3}
+          mr={4}
+        >
+          <Icon as={MessageSquare} boxSize={6} color={iconColor3} />
+        </Box>
+        <Box flex="1">
+          <Stat>
+            <StatLabel fontWeight="medium">Total Chats</StatLabel>
+            <StatNumber fontSize="3xl">{formatNumber(stats.totalChats)}</StatNumber>
+            <StatHelpText>
+              <HStack>
+                <Icon as={TrendingUp} boxSize={3} color="green.500" />
+                <Text>+18% this month</Text>
+              </HStack>
+            </StatHelpText>
+          </Stat>
+        </Box>
+      </Flex>
+    </CardBody>
+  </Card>
+  
+  {/* Active Today Card */}
+  <Card boxShadow="sm" bg={cardBg}>
+    <CardBody>
+      <Flex align="center">
+        <Box
+          p={3}
+          borderRadius="lg"
+          bg={iconBg4}
+          mr={4}
+        >
+          <Icon as={Cpu} boxSize={6} color={iconColor4} />
+        </Box>
+        <Box flex="1">
+          <Stat>
+            <StatLabel fontWeight="medium">Active Today</StatLabel>
+            <StatNumber fontSize="3xl">{formatNumber(stats.activeUsers)}</StatNumber>
+            <StatHelpText>
+              <HStack>
+                <Icon as={Calendar} boxSize={3} color="blue.500" />
+                <Text>Daily active users</Text>
+              </HStack>
+            </StatHelpText>
+          </Stat>
+        </Box>
+      </Flex>
+    </CardBody>
+  </Card>
+</SimpleGrid>
       
       {/* Recent and Top Bots Sections */}
       <Grid 
