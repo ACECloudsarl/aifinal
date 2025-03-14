@@ -1,4 +1,4 @@
-// pages/chat/[botId].js - Redesigned
+// pages/chat/[botId].js - Modernized with RTL support and mobile optimizations
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useTranslation } from 'react-i18next';
@@ -30,18 +30,25 @@ import {
   DrawerCloseButton,
   Button,
   useBreakpointValue,
+  Badge,
+  ScaleFade,
+  Portal,
+  CloseButton,
+  useTheme,
+  useToast,
 } from '@chakra-ui/react';
-import { FiMenu, FiArrowLeft, FiInfo, FiX } from 'react-icons/fi';
+import { FiMenu, FiArrowLeft, FiInfo, FiX, FiMessageSquare, FiExternalLink, FiChevronRight } from 'react-icons/fi';
 import Layout from '../../components/layout/Layout';
 import ChatMessage from '../../components/chat/ChatMessage';
 import ChatInput from '../../components/chat/ChatInput';
+import Head from 'next/head';
 
 function Chat() {
   const router = useRouter();
   const { chatId: urlChatId, botId: urlBotId } = router.query;
   const { data: session } = useSession();
   const { t } = useTranslation();
-  const [streamingMessage, setStreamingMessage] = useState("");
+  const [streamingMessage, setStreamingMessage] = useState(null);
 
   const [bot, setBot] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -51,20 +58,39 @@ function Chat() {
   const [tokenUsage, setTokenUsage] = useState({ used: 0, total: 4000 });
   const [error, setError] = useState(null);
   const [messagesWithImages, setMessagesWithImages] = useState({});
+  const [isStreamingCancelled, setIsStreamingCancelled] = useState(false);
+  const [isTypingAIVisible, setIsTypingAIVisible] = useState(false);
   
   // Mobile drawer for bot info
   const { isOpen, onOpen: openDrawer, onClose: closeDrawer } = useDisclosure();
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+  const eventSourceRef = useRef(null);
+  const toast = useToast();
   
   // Responsive values
   const isMobile = useBreakpointValue({ base: true, md: false });
   const containerMaxW = useBreakpointValue({ base: "100%", md: "768px", lg: "800px", xl: "900px" });
 
-  // Colors
-  const bgColor = useColorModeValue("white", "gray.900");
-  const borderColor = useColorModeValue("gray.200", "gray.700");
-  const headerBgColor = useColorModeValue("white", "gray.800");
-  const avatarBg = useColorModeValue("gray.100", "gray.700");
+  // Modern dark theme colors
+  const bgColor = useColorModeValue("white", "#171717"); // gray.900 from your theme
+  const borderColor = useColorModeValue("gray.200", "hsla(0, 0%, 100%, .1)"); // border-light from your theme
+  const headerBgColor = useColorModeValue("white", "#212121"); // gray.800 from your theme
+  const avatarBg = useColorModeValue("gray.100", "#2f2f2f"); // gray.750 from your theme
+  const textPrimary = useColorModeValue("gray.800", "#f2f6fa"); // content-primary from your theme
+  const textSecondary = useColorModeValue("gray.600", "#dbe2e8"); // content-secondary from your theme
+  const typingIndicatorBg = useColorModeValue("blue.50", "rgba(66, 153, 225, 0.15)");
+  
+  // Handle streaming cancellation
+  const cancelStreaming = () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+      setIsStreamingCancelled(true);
+      setStreamingMessage(null);
+      setIsTypingAIVisible(false);
+    }
+  };
   
   // Initialization effect - this runs first to set up the chat
   useEffect(() => {
@@ -85,6 +111,7 @@ function Chat() {
             // Get chat data
             const chatResponse = await fetch(`/api/chats/${urlChatId}`);
             if (!chatResponse.ok) {
+              return 'not ok'
               throw new Error(`Chat fetch failed: ${chatResponse.status}`);
             }
             const chatData = await chatResponse.json();
@@ -105,6 +132,7 @@ function Chat() {
             // Get messages
             const messagesResponse = await fetch(`/api/chats/${urlChatId}/messages`);
             if (!messagesResponse.ok) {
+              return 'not ok'
               throw new Error(`Messages fetch failed: ${messagesResponse.status}`);
             }
             const messagesData = await messagesResponse.json();
@@ -183,6 +211,14 @@ function Chat() {
     if (router.isReady && session) {
       initializeChat();
     }
+    
+    // Cleanup function
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
   }, [router.isReady, router.query, session, router]);
   
   // Load chat data and messages once chatId is set
@@ -219,18 +255,43 @@ function Chat() {
     loadChatData();
   }, [chatId, isInitializing]);
   
-  // Scroll to bottom when messages change
+  // Handle scroll behavior for streaming messages
   useEffect(() => {
+    // Smooth scroll to bottom on message changes
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      // Check if user is already at the bottom (or close to it)
+      const container = messagesContainerRef.current;
+      const isAtBottom = container && 
+        container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      
+      if (isAtBottom || streamingMessage) {
+        messagesEndRef.current.scrollIntoView({ 
+          behavior: streamingMessage ? 'smooth' : 'auto',
+          block: 'end'
+        });
+      }
     }
   }, [messages, streamingMessage]);
+  
+  // Handle typing indicator visibility
+  useEffect(() => {
+    if (streamingMessage) {
+      setIsTypingAIVisible(true);
+    } else {
+      // Short delay before hiding to avoid UI jumps
+      const timer = setTimeout(() => {
+        setIsTypingAIVisible(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [streamingMessage]);
   
   const handleSendMessage = async (content) => {
     if (!chatId) return;
     
     setIsLoading(true);
     setError(null);
+    setIsStreamingCancelled(false);
     
     try {
       // Add optimistic user message
@@ -242,6 +303,13 @@ function Chat() {
       };
       
       setMessages(prev => [...prev, userMessage]);
+      
+      // Scroll to the bottom immediately after adding user message
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 100);
       
       // Check if we should use streaming
       const useStreaming = !content.toLowerCase().includes("generate") && 
@@ -262,6 +330,7 @@ function Chat() {
         
         // Set up the event source
         const eventSource = new EventSource(`/api/chats/${chatId}/messages?stream=true&content=${encodeURIComponent(content)}`);
+        eventSourceRef.current = eventSource;
         
         eventSource.onmessage = (event) => {
           const data = JSON.parse(event.data);
@@ -276,19 +345,23 @@ function Chat() {
           
           if (data.done) {
             eventSource.close();
+            eventSourceRef.current = null;
             setIsLoading(false);
             
-            // Add the final message
-            setMessages(prev => [
-              ...prev.filter(msg => msg.id !== userMessage.id),
-              userMessage,
-              {
-                id: data.messageId,
-                content: streamContent,
-                role: "assistant",
-                createdAt: new Date().toISOString(),
-              },
-            ]);
+            // Only add the final message if streaming wasn't cancelled
+            if (!isStreamingCancelled) {
+              // Add the final message
+              setMessages(prev => [
+                ...prev.filter(msg => msg.id !== userMessage.id),
+                userMessage,
+                {
+                  id: data.messageId,
+                  content: streamContent,
+                  role: "assistant",
+                  createdAt: new Date().toISOString(),
+                },
+              ]);
+            }
             
             setStreamingMessage(null);
           }
@@ -296,6 +369,7 @@ function Chat() {
         
         eventSource.onerror = () => {
           eventSource.close();
+          eventSourceRef.current = null;
           setIsLoading(false);
           setError("Error streaming response. Please try again.");
           setStreamingMessage(null);
@@ -342,6 +416,15 @@ function Chat() {
       console.error('Error sending message:', error);
       setError('Failed to send message. Please try again.');
       setIsLoading(false);
+      setStreamingMessage(null);
+      
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
     }
   };
 
@@ -416,7 +499,14 @@ function Chat() {
   
   const handleCopy = (content) => {
     navigator.clipboard.writeText(content);
-    // You could add a toast notification here
+    
+    toast({
+      title: "Copied",
+      description: "Message copied to clipboard",
+      status: "success",
+      duration: 2000,
+      isClosable: true,
+    });
   };
   
   const handleRegenerate = async (messageId) => {
@@ -468,27 +558,43 @@ function Chat() {
           used: prev.used + regeneratedMessage.tokens,
         }));
       }
+      
+      toast({
+        title: "Regenerated Response",
+        status: "success",
+        duration: 2000,
+        isClosable: true,
+      });
     } catch (error) {
       console.error('Error regenerating message:', error);
       setError('Failed to regenerate message. Please try again.');
+      
+      toast({
+        title: "Error",
+        description: "Failed to regenerate response",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
     } finally {
       setIsLoading(false);
     }
   };
   
   const handleSpeak = (content) => {
-    // Use the Web Speech API for text-to-speech
-    if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(content);
-      window.speechSynthesis.speak(utterance);
-    }
+    // This function passes through to the ChatMessage component
   };
   
   // Initialization loading state - using skeleton now
   if (isInitializing) {
     return (
       <Layout hideNav={isMobile}>
-        <Box bg={bgColor} minH="100vh">
+        <Head>
+          <title>{bot?.name ? `Chat with ${bot.name}` : 'AI Chat'}</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" />
+        </Head>
+        <Box bg={bgColor} minH="100vh" maxH="100vh" display="flex" flexDirection="column">
           <Container maxW={containerMaxW} px={0} h="100vh" display="flex" flexDirection="column">
             {/* Header Skeleton */}
             <Flex 
@@ -551,6 +657,10 @@ function Chat() {
   if (!bot && !error) {
     return (
       <Layout hideNav={isMobile}>
+        <Head>
+          <title>Loading Chat...</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        </Head>
         <Box 
           display="flex" 
           justifyContent="center" 
@@ -567,9 +677,23 @@ function Chat() {
   // Main chat return
   return (
     <Layout hideNav={isMobile}>
-      <Box bg={bgColor} minH="100vh">
+      <Head>
+        <title>{bot?.name ? `Chat with ${bot.name}` : 'AI Chat'}</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        {/* Fonts */}
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+      </Head>
+      <Box 
+        bg={bgColor} 
+        minH="100vh" 
+        maxH="100vh" 
+        display="flex" 
+        flexDirection="column" 
+        overflow="hidden"
+        transition="all 0.3s ease"
+      >
         <Container maxW={containerMaxW} px={0} h="100vh" display="flex" flexDirection="column">
-          {/* Mobile back button and header */}
+          {/* Fixed Header */}
           <Flex 
             p={3} 
             borderBottom="1px solid" 
@@ -579,7 +703,7 @@ function Chat() {
             top={0}
             bg={headerBgColor}
             zIndex={10}
-            h="60px"
+            h={{ base: "60px", md: "64px" }}
           >
             {isMobile && (
               <IconButton
@@ -589,6 +713,7 @@ function Chat() {
                 mr={2}
                 onClick={() => router.push('/chats')}
                 aria-label="Back to chats"
+                color={textPrimary}
               />
             )}
             
@@ -601,7 +726,7 @@ function Chat() {
             />
             
             <VStack align="start" spacing={0} flex="1">
-              <Text fontWeight="bold" fontSize="sm">
+              <Text fontWeight="bold" fontSize="sm" color={textPrimary}>
                 {bot?.name || "Chat"}
               </Text>
               <Text 
@@ -620,6 +745,7 @@ function Chat() {
                 size="sm"
                 onClick={openDrawer}
                 aria-label="Bot information"
+                color={textPrimary}
               />
             </Tooltip>
           </Flex>
@@ -647,6 +773,26 @@ function Chat() {
             py={4}
             px={{ base: 2, md: 4 }}
             id="messages-container"
+            ref={messagesContainerRef}
+            position="relative"
+            css={{
+              // Fix iOS momentum scrolling
+              WebkitOverflowScrolling: 'touch',
+              // Hide scrollbar for Chrome, Safari and Opera
+              '&::-webkit-scrollbar': {
+                width: '4px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: borderColor,
+                borderRadius: '4px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: 'transparent',
+              },
+              // For Firefox
+              scrollbarWidth: 'thin',
+              scrollbarColor: `${borderColor} transparent`,
+            }}
           >
             {/* Empty State */}
             {messages.length === 0 && !isLoading ? (
@@ -664,7 +810,7 @@ function Chat() {
                   bg={avatarBg}
                 />
                 <VStack spacing={2}>
-                  <Text fontSize="lg" fontWeight="bold">
+                  <Text fontSize="lg" fontWeight="bold" color={textPrimary}>
                     Chat with {bot?.name}
                   </Text>
                   <Text fontSize="sm" color="gray.500" textAlign="center">
@@ -683,6 +829,11 @@ function Chat() {
                       width="full"
                       justifyContent="flex-start"
                       onClick={() => handleSendMessage(suggestion)}
+                      borderColor={borderColor}
+                      _hover={{ bg: "rgba(66, 153, 225, 0.1)" }}
+                      color={textPrimary}
+                      leftIcon={<FiMessageSquare size={14} />}
+                      iconSpacing={3}
                     >
                       {suggestion}
                     </Button>
@@ -739,31 +890,38 @@ function Chat() {
                   </HStack>
                 )}
                 
+                {/* Empty space for new messages when AI is typing */}
+                {isTypingAIVisible && (
+                  <Box height={{ base: "140px", md: "100px" }} width="100%" />
+                )}
+                
                 {/* Scroll Anchor */}
                 <Box ref={messagesEndRef} />
               </VStack>
             )}
           </Box>
           
-          {/* Chat Input */}
+          {/* Fixed chat input at the bottom */}
           <Box 
             p={{ base: 2, md: 3 }} 
             borderTop="1px solid" 
             borderColor={borderColor}
             bg={bgColor}
+            position="relative"
+            zIndex={5}
           >
             <ChatInput
               onSendMessage={handleSendMessage}
               isLoading={isLoading}
               tokenUsage={tokenUsage}
               isStreaming={!!streamingMessage}
-              onCancelStreaming={() => setStreamingMessage(null)}
+              onCancelStreaming={cancelStreaming}
             />
           </Box>
         </Container>
       </Box>
       
-      {/* Bot Information Drawer (Mobile) */}
+      {/* Bot Information Drawer */}
       <Drawer
         isOpen={isOpen}
         placement="right"
@@ -771,13 +929,13 @@ function Chat() {
         size={isMobile ? "full" : "md"}
       >
         <DrawerOverlay />
-        <DrawerContent>
+        <DrawerContent bg={bgColor} color={textPrimary}>
           <DrawerCloseButton />
-          <DrawerHeader borderBottomWidth="1px">
+          <DrawerHeader borderBottomWidth="1px" borderColor={borderColor}>
             Bot Information
           </DrawerHeader>
           
-          <DrawerBody py={4}>
+          <DrawerBody py={6}>
             <VStack spacing={6} align="center">
               <Avatar 
                 src={bot?.avatar} 
@@ -787,30 +945,55 @@ function Chat() {
               />
               
               <VStack spacing={2}>
-                <Text fontSize="xl" fontWeight="bold">
+                <Text fontSize="xl" fontWeight="bold" color={textPrimary}>
                   {bot?.name}
                 </Text>
-                <Text color="gray.500" textAlign="center">
-                  {bot?.description}
-                </Text>
+                <Box 
+                  p={3} 
+                  borderRadius="md" 
+                  bg={typingIndicatorBg} 
+                  width="full"
+                  textAlign="center"
+                >
+                  <Text color={textPrimary}>
+                    {bot?.description}
+                  </Text>
+                </Box>
               </VStack>
+              
+              {bot?.model && (
+                <Badge colorScheme="blue" px={2} py={1} borderRadius="full">
+                  {bot.model}
+                </Badge>
+              )}
               
               {bot?.capabilities && (
                 <>
                   <Divider />
-                  <Text fontWeight="bold" alignSelf="flex-start">
+                  <Text fontWeight="bold" alignSelf="flex-start" color={textPrimary}>
                     Capabilities
                   </Text>
                   <VStack align="stretch" width="full" spacing={2}>
                     {bot.capabilities.map((capability, i) => (
-                      <HStack key={i} alignItems="flex-start">
-                        <Box w="24px" textAlign="center">•</Box>
-                        <Text flex="1">{capability}</Text>
+                      <HStack key={i} alignItems="flex-start" spacing={3}>
+                        <FiChevronRight color="var(--chakra-colors-blue-500)" />
+                        <Text flex="1" color={textSecondary}>{capability}</Text>
                       </HStack>
                     ))}
                   </VStack>
                 </>
               )}
+              
+              <Button 
+                leftIcon={<FiExternalLink />} 
+                colorScheme="blue" 
+                variant="outline"
+                size="sm"
+                mt={4}
+                onClick={() => window.open('/bots', '_blank')}
+              >
+                Browse More Bots
+              </Button>
             </VStack>
           </DrawerBody>
         </DrawerContent>

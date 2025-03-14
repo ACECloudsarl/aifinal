@@ -1,4 +1,4 @@
-// components/chat/ChatInput.js - Redesigned with floating buttons
+// components/chat/ChatInput.js - Fixed without VoiceService dependency
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Box, 
@@ -40,7 +40,6 @@ import {
   FiInfo,
 } from 'react-icons/fi';
 import VoiceRecorder from './VoiceRecorder';
-import voiceService from '@/lib/VoiceService';
 
 const ChatInput = ({ 
   onSendMessage, 
@@ -55,9 +54,8 @@ const ChatInput = ({
   const [isCommandsOpen, setIsCommandsOpen] = useState(false);
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  
   const textareaRef = useRef(null);
-  const recordButtonRef = useRef(null);
-  const recordTimeoutRef = useRef(null);
   const toast = useToast();
   
   // Responsive values
@@ -66,17 +64,17 @@ const ChatInput = ({
   // Colors
   const borderColor = useColorModeValue('gray.200', 'gray.700');
   const bgColor = useColorModeValue('white', 'gray.900');
-  const inputBgColor = useColorModeValue('gray.50', 'gray.700');
+  const inputBgColor = useColorModeValue('gray.50', 'gray.800');
   const hoverBgColor = useColorModeValue('gray.100', 'gray.700');
   const buttonShadow = useColorModeValue('0 2px 6px rgba(0,0,0,0.1)', '0 2px 6px rgba(0,0,0,0.4)');
-  const tokenBgColor = useColorModeValue('gray.100', 'gray.700');
+  const tokenBgColor = useColorModeValue('gray.100', 'gray.800');
   
   // Suggestions for the user
   const suggestions = [
     "Generate an image of a sunset over mountains",
-    "Explain how quantum computing works",
+    "Tell me about the latest advancements in AI",
     "Write a short story about a robot learning to paint",
-    "Analyze this data and create a chart"
+    "Explain quantum computing in simple terms"
   ];
   
   // Available commands/shortcuts
@@ -84,22 +82,6 @@ const ChatInput = ({
     { icon: FiImage, label: "Generate image", command: "/image" },
     { icon: FiInfo, label: "Explain this", command: "/explain" },
   ];
-  
-  // Load voice settings on mount
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const settings = await voiceService.loadUserSettings();
-        if (settings) {
-          setAutoTTS(settings.autoTTS);
-        }
-      } catch (error) {
-        console.error("Error loading voice settings:", error);
-      }
-    };
-    
-    loadSettings();
-  }, []);
   
   // Auto-resize textarea
   useEffect(() => {
@@ -122,35 +104,38 @@ const ChatInput = ({
   
   // Handle voice recording
   const handleVoiceRecorded = (transcription) => {
+    console.log("Received transcription:", transcription);
+    
     if (transcription && transcription.trim()) {
-      setMessage(transcription);
-    }
-    setIsRecording(false);
-  };
-  
-  // Toggle auto TTS
-  const toggleAutoTTS = async () => {
-    try {
-      const isEnabled = await voiceService.toggleAutoTTS();
-      setAutoTTS(isEnabled);
+      setMessage(current => current + (current ? ' ' : '') + transcription);
       
       toast({
-        title: isEnabled ? 'Auto TTS Enabled' : 'Auto TTS Disabled',
-        description: isEnabled ? 'Responses will be read aloud.' : 'Responses will not be read aloud.',
-        status: isEnabled ? 'success' : 'info',
-        duration: 3000,
-        isClosable: true,
-        position: 'top-right',
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to toggle auto TTS',
-        status: 'error',
+        title: "Voice Transcribed",
+        description: transcription.length > 30 
+          ? transcription.substring(0, 30) + "..." 
+          : transcription,
+        status: "success",
         duration: 3000,
         isClosable: true,
       });
     }
+  };
+  
+  // Toggle auto TTS setting (simplified without service dependency)
+  const toggleAutoTTS = () => {
+    setAutoTTS(!autoTTS);
+    
+    // Save to localStorage for persistence
+    localStorage.setItem('autoTTS', (!autoTTS).toString());
+    
+    toast({
+      title: !autoTTS ? 'Auto TTS Enabled' : 'Auto TTS Disabled',
+      description: !autoTTS ? 'Responses will be read aloud.' : 'Responses will not be read aloud.',
+      status: !autoTTS ? 'success' : 'info',
+      duration: 3000,
+      isClosable: true,
+      position: 'top-right',
+    });
   };
   
   // Handle suggestion click
@@ -170,20 +155,6 @@ const ChatInput = ({
     // Focus the textarea after inserting a command
     if (textareaRef.current) {
       textareaRef.current.focus();
-    }
-  };
-  
-  // Start voice recording with long press
-  const startRecording = () => {
-    recordTimeoutRef.current = setTimeout(() => {
-      setIsRecording(true);
-    }, 500); // 500ms delay for long press
-  };
-  
-  // Cancel recording if button released too quickly
-  const cancelRecording = () => {
-    if (recordTimeoutRef.current) {
-      clearTimeout(recordTimeoutRef.current);
     }
   };
   
@@ -331,32 +302,16 @@ const ChatInput = ({
               </IconButton>
             </Tooltip>
             
-            <Popover>
-              <PopoverTrigger>
-                <IconButton 
-                  icon={<FiMoreHorizontal />} 
-                  variant="ghost"
-                  size="sm"
-                  aria-label="More options"
-                />
-              </PopoverTrigger>
-              <PopoverContent width="200px">
-                <PopoverArrow />
-                <PopoverBody p={2}>
-                  <VStack align="stretch" spacing={2}>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      justifyContent="flex-start"
-                      leftIcon={autoTTS ? <FiVolume2 /> : <FiVolumeX />}
-                      onClick={toggleAutoTTS}
-                    >
-                      {autoTTS ? "Disable" : "Enable"} Text-to-Speech
-                    </Button>
-                  </VStack>
-                </PopoverBody>
-              </PopoverContent>
-            </Popover>
+            <Tooltip label={autoTTS ? "Text-to-Speech On" : "Text-to-Speech Off"}>
+              <IconButton 
+                icon={autoTTS ? <FiVolume2 /> : <FiVolumeX />} 
+                variant="ghost"
+                size="sm"
+                colorScheme={autoTTS ? "blue" : "gray"}
+                onClick={toggleAutoTTS}
+                aria-label="Toggle Text-to-Speech"
+              />
+            </Tooltip>
           </HStack>
           
           {/* Textarea */}
@@ -372,6 +327,7 @@ const ChatInput = ({
             py={3}
             border="none"
             borderRadius="full"
+            dir="auto" // Auto-detect RTL
             _focus={{ 
               border: "none", 
               boxShadow: "none" 
@@ -425,7 +381,7 @@ const ChatInput = ({
             transform="translateY(-50%)"
             boxShadow={buttonShadow}
             cursor="pointer"
-            _hover={{ bg: "red.600" }}
+            _hover={{ opacity: 0.9 }}
             onClick={onCancelStreaming}
             zIndex={3}
           >
@@ -435,7 +391,6 @@ const ChatInput = ({
         
         {/* Floating Record Button */}
         <Circle
-          ref={recordButtonRef}
           size="44px"
           bg={isRecording ? "red.500" : "gray.400"}
           color="white"
@@ -446,25 +401,75 @@ const ChatInput = ({
           boxShadow={buttonShadow}
           cursor="pointer"
           _hover={{ bg: isRecording ? "red.600" : "gray.500" }}
-          onMouseDown={startRecording}
-          onMouseUp={cancelRecording}
-          onTouchStart={startRecording}
-          onTouchEnd={cancelRecording}
+          onClick={() => {
+            console.log("Record button clicked, current state:", isRecording);
+            // Force re-render even if state doesn't change
+            if (isRecording) {
+              setIsRecording(false);
+              toast({
+                title: "Recording stopped",
+                status: "info",
+                duration: 2000,
+                isClosable: true,
+              });
+            } else {
+              setIsRecording(true);
+              toast({
+                title: "Recording started",
+                description: "Speak now...",
+                status: "info",
+                duration: 2000,
+                isClosable: true,
+              });
+            }
+          }}
           transition="all 0.2s"
           zIndex={3}
         >
           <FiMic size={18} />
+          {isRecording && (
+            <Box
+              position="absolute"
+              top={-1}
+              right={-1}
+              width="12px"
+              height="12px"
+              borderRadius="full"
+              bg="red.400"
+              animation="pulse 1.5s infinite"
+            />
+          )}
         </Circle>
       </Box>
       
-      {/* Voice Recording Component - Hidden but functional */}
-      <Box display="none">
+      {/* Voice Recording Component */}
+      <Box>
         <VoiceRecorder 
           onVoiceRecorded={handleVoiceRecorded}
           isRecording={isRecording}
           setIsRecording={setIsRecording}
         />
       </Box>
+      
+      {/* Add the pulse animation directly */}
+      <style jsx global>{`
+        @keyframes pulse {
+          0% {
+            transform: scale(0.95);
+            box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7);
+          }
+          
+          70% {
+            transform: scale(1);
+            box-shadow: 0 0 0 10px rgba(255, 0, 0, 0);
+          }
+          
+          100% {
+            transform: scale(0.95);
+            box-shadow: 0 0 0 0 rgba(255, 0, 0, 0);
+          }
+        }
+      `}</style>
     </Box>
   );
 };

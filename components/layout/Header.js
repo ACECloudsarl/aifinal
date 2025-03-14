@@ -25,10 +25,9 @@ import {
   Tooltip,
   Kbd,
   useDisclosure,
-  Collapse,
-  useOutsideClick,
   Portal,
   VStack,
+  Container,
 } from '@chakra-ui/react';
 import NextLink from 'next/link';
 import {
@@ -47,6 +46,7 @@ import {
   FiLogOut,
   FiImage,
   FiCommand,
+  FiChevronDown,
 } from 'react-icons/fi';
 import { useRouter } from 'next/router';
 
@@ -60,14 +60,27 @@ const Header = ({ onMobileMenuOpen, currentView, title }) => {
   
   // Command palette (search) state
   const { isOpen, onToggle, onClose } = useDisclosure();
-  useOutsideClick({
-    ref: searchRef,
-    handler: onClose,
-  });
   
-  // Color mode values
-  const bgColor = useColorModeValue('white', 'gray.800');
+  useEffect(() => {
+    if (isOpen) {
+      const handleClickOutside = (e) => {
+        if (searchRef.current && !searchRef.current.contains(e.target)) {
+          onClose();
+        }
+      };
+
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen, onClose]);
+  
+  // Theme values
+  const bgColor = useColorModeValue('white', 'gray.1000');
   const borderColor = useColorModeValue('gray.200', 'gray.700');
+  const searchBgColor = useColorModeValue('gray.50', 'gray.800');
+  const searchHoverBgColor = useColorModeValue('gray.100', 'gray.700');
+  const searchFocusBgColor = useColorModeValue('white', 'gray.750');
+  const searchPlaceholderColor = useColorModeValue('gray.400', 'gray.500');
   
   // Page titles based on current view
   const getPageTitle = () => {
@@ -154,211 +167,242 @@ const Header = ({ onMobileMenuOpen, currentView, title }) => {
       boxShadow="sm"
       borderBottom="1px solid"
       borderColor={borderColor}
-      px={{ base: 4, md: 6 }}
-      py={3}
       zIndex={10}
       backdropFilter="blur(10px)"
+      w="full"
     >
-      <Flex align="center" justify="space-between">
-        {/* Left section: Mobile menu button and page title */}
-        <HStack spacing={3}>
-          <IconButton
-            aria-label="Open menu"
-            icon={<FiMenu />}
-            variant="ghost"
-            display={{ base: 'flex', md: 'none' }}
-            onClick={onMobileMenuOpen}
-          />
-          
-          {(!showMobileSearch || !isMobile) && (
-            <HStack>
-              <Heading
-                size="md"
-                display="flex"
-                alignItems="center"
-                gap={2}
-              >
-                {getPageIcon() && <Box as={getPageIcon()} />}
-                {getPageTitle()}
-              </Heading>
-              
-              {currentView === 'explore' && (
-                <Badge colorScheme="purple" variant="subtle">New</Badge>
-              )}
-            </HStack>
-          )}
-        </HStack>
-        
-        {/* Center/Right section: Search, actions and user */}
-        <HStack spacing={3}>
-          {/* Search - Shown on desktop or when toggled on mobile */}
-          {(!isMobile || showMobileSearch) && (
-            <Box
-              as="form"
-              onSubmit={handleSearchSubmit}
-              w={showMobileSearch && isMobile ? 'full' : 'auto'}
-              position={showMobileSearch && isMobile ? 'absolute' : 'static'}
-              left={showMobileSearch && isMobile ? 0 : 'auto'}
-              right={showMobileSearch && isMobile ? 0 : 'auto'}
-              px={showMobileSearch && isMobile ? 4 : 0}
-              py={showMobileSearch && isMobile ? 2 : 0}
-              bg={bgColor}
-              zIndex={2}
-            >
-              <InputGroup size="md" w={{ base: 'full', md: '300px' }}>
-                <InputLeftElement pointerEvents="none">
-                  <FiSearch color="gray.300" />
-                </InputLeftElement>
+      <Container maxW="1440px" px={{ base: 4, md: 6 }} py={3}>
+        <Flex align="center" justify="space-between">
+          {/* Left section: Mobile menu button and page title */}
+          <HStack spacing={4}>
+            <IconButton
+              aria-label="Open menu"
+              icon={<FiMenu size={18} />}
+              variant="ghost"
+              display={{ base: 'flex', md: 'none' }}
+              onClick={onMobileMenuOpen}
+              size="sm"
+            />
+            
+            {(!showMobileSearch || !isMobile) && (
+              <HStack spacing={2}>
+                {getPageIcon() && (
+                  <Flex
+                    align="center"
+                    justify="center"
+                    bg="brand.50"
+                    color="brand.500"
+                    boxSize="36px" 
+                    borderRadius="lg"
+                    _dark={{
+                      bg: 'rgba(94, 46, 255, 0.2)',
+                      color: 'brand.300',
+                    }}
+                  >
+                    <Box as={getPageIcon()} size={18} />
+                  </Flex>
+                )}
                 
-                <Input
-                  placeholder="Search..."
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  variant="filled"
-                  bg={useColorModeValue('gray.100', 'gray.700')}
-                  _hover={{ bg: useColorModeValue('gray.200', 'gray.600') }}
-                  _focus={{ 
-                    bg: useColorModeValue('white', 'gray.800'),
-                    borderColor: 'brand.500',
-                  }}
-                  borderRadius="full"
-                />
-                
-                <InputRightElement>
-                  {searchQuery ? (
-                    <IconButton
-                      icon={<FiX />}
-                      variant="ghost"
-                      size="sm"
-                      isRound
-                      aria-label="Clear search"
-                      onClick={clearSearch}
-                    />
-                  ) : (
-                    <Flex
-                      align="center"
-                      justify="center"
-                      bg={useColorModeValue('gray.200', 'gray.600')}
-                      color={useColorModeValue('gray.500', 'gray.400')}
-                      px={2}
-                      borderRadius="md"
-                      fontSize="xs"
-                      h="20px"
-                      mr={2}
-                    >
-                      <Box as={FiCommand} mr={1} />
-                      K
-                    </Flex>
+                <Box>
+                  <Heading
+                    size="sm"
+                    fontWeight="600"
+                    letterSpacing="-0.01em"
+                  >
+                    {getPageTitle()}
+                  </Heading>
+                  
+                  {currentView === 'explore' && (
+                    <HStack spacing={1} mt={0.5}>
+                      <Badge colorScheme="purple" variant="subtle" fontSize="2xs">New</Badge>
+                      <Text fontSize="xs" color="gray.500" fontWeight="normal">
+                        Discover our latest AI models
+                      </Text>
+                    </HStack>
                   )}
-                </InputRightElement>
-              </InputGroup>
-              
-              {showMobileSearch && isMobile && (
-                <IconButton
-                  icon={<FiX />}
-                  variant="ghost"
-                  position="absolute"
-                  right={2}
-                  top="50%"
-                  transform="translateY(-50%)"
-                  aria-label="Close search"
-                  onClick={toggleMobileSearch}
-                />
-              )}
-            </Box>
-          )}
+                </Box>
+              </HStack>
+            )}
+          </HStack>
           
-          {/* Mobile search toggle button */}
-          {isMobile && !showMobileSearch && (
-            <IconButton
-              aria-label="Search"
-              icon={<FiSearch />}
-              variant="ghost"
-              onClick={toggleMobileSearch}
-            />
-          )}
-          
-          {/* New chat button - hidden on mobile and when search is open */}
-          {(!isMobile && !showMobileSearch) && (
-            <Button
-              leftIcon={<FiPlus />}
-              colorScheme="brand"
-              variant="outline"
-              size="sm"
-              display={{ base: 'none', sm: 'flex' }}
-            >
-              New Chat
-            </Button>
-          )}
-          
-          {/* New image button - only on image pages */}
-          {['gallery', 'create-image'].includes(currentView) && !isMobile && !showMobileSearch && (
-            <Button
-              leftIcon={<FiImage />}
-              colorScheme="purple"
-              variant="outline"
-              size="sm"
-              display={{ base: 'none', sm: 'flex' }}
-            >
-              New Image
-            </Button>
-          )}
-          
-          {/* Theme toggle */}
-          <Tooltip label={colorMode === 'light' ? 'Dark mode' : 'Light mode'}>
-            <IconButton
-              aria-label="Toggle color mode"
-              icon={colorMode === 'light' ? <FiMoon /> : <FiSun />}
-              variant="ghost"
-              onClick={toggleColorMode}
-              color={colorMode === 'light' ? 'gray.700' : 'yellow.300'}
-            />
-          </Tooltip>
-          
-          {/* Notifications */}
-          <Tooltip label="Notifications">
-            <IconButton
-              aria-label="Notifications"
-              icon={<FiBell />}
-              variant="ghost"
-              position="relative"
-            >
-              <Badge
-                position="absolute"
-                top="-2px"
-                right="-2px"
-                colorScheme="red"
-                borderRadius="full"
-                boxSize="6px"
-              />
-            </IconButton>
-          </Tooltip>
-          
-          {/* User menu */}
-          <Menu placement="bottom-end">
-            <MenuButton
-              as={Button}
-              variant="ghost"
-              p={0}
-              ml={0.5}
-            >
-              <Avatar
+          {/* Center/Right section: Search, actions and user */}
+          <HStack spacing={{ base: 2, md: 4 }}>
+            {/* Search - Shown on desktop or when toggled on mobile */}
+            {(!isMobile || showMobileSearch) && (
+              <Box
+                as="form"
+                onSubmit={handleSearchSubmit}
+                w={showMobileSearch && isMobile ? 'full' : 'auto'}
+                position={showMobileSearch && isMobile ? 'absolute' : 'static'}
+                left={showMobileSearch && isMobile ? 0 : 'auto'}
+                right={showMobileSearch && isMobile ? 0 : 'auto'}
+                px={showMobileSearch && isMobile ? 4 : 0}
+                py={showMobileSearch && isMobile ? 2 : 0}
+                bg={bgColor}
+                zIndex={2}
+              >
+                <InputGroup size="sm" w={{ base: 'full', md: '280px', lg: '320px' }}>
+                  <InputLeftElement pointerEvents="none">
+                    <FiSearch color="var(--chakra-colors-gray-400)" size={14} />
+                  </InputLeftElement>
+                  
+                  <Input
+                    placeholder="Search..."
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    bg={searchBgColor}
+                    _hover={{ bg: searchHoverBgColor }}
+                    _focus={{ 
+                      bg: searchFocusBgColor,
+                      borderColor: 'brand.400',
+                    }}
+                    borderRadius="md"
+                    fontSize="sm"
+                    _placeholder={{ color: searchPlaceholderColor }}
+                  />
+                  
+                  <InputRightElement>
+                    {searchQuery ? (
+                      <IconButton
+                        icon={<FiX size={14} />}
+                        variant="ghost"
+                        size="xs"
+                        isRound
+                        aria-label="Clear search"
+                        onClick={clearSearch}
+                      />
+                    ) : (
+                      <Flex
+                        align="center"
+                        justify="center"
+                        bg={useColorModeValue('gray.200', 'gray.700')}
+                        color={useColorModeValue('gray.500', 'gray.400')}
+                        px={1.5}
+                        borderRadius="md"
+                        fontSize="xs"
+                        h="18px"
+                        mr={2}
+                      >
+                        <Box as={FiCommand} mr={0.5} size={10} />
+                        <Text fontSize="10px" fontWeight="medium">K</Text>
+                      </Flex>
+                    )}
+                  </InputRightElement>
+                </InputGroup>
+                
+                {showMobileSearch && isMobile && (
+                  <IconButton
+                    icon={<FiX size={16} />}
+                    variant="ghost"
+                    position="absolute"
+                    right={2}
+                    top="50%"
+                    transform="translateY(-50%)"
+                    aria-label="Close search"
+                    onClick={toggleMobileSearch}
+                    size="sm"
+                  />
+                )}
+              </Box>
+            )}
+            
+            {/* Mobile search toggle button */}
+            {isMobile && !showMobileSearch && (
+              <IconButton
+                aria-label="Search"
+                icon={<FiSearch size={16} />}
+                variant="ghost"
+                onClick={toggleMobileSearch}
                 size="sm"
-                name="User Name"
-                src="/images/avatar.jpg"
-                borderWidth={2}
-                borderColor={bgColor}
               />
-            </MenuButton>
-            <MenuList zIndex={20}>
-              <MenuItem icon={<FiUser fontSize="1.2em" />}>Profile</MenuItem>
-              <MenuItem icon={<FiSettings fontSize="1.2em" />}>Settings</MenuItem>
-              <MenuDivider />
-              <MenuItem icon={<FiLogOut fontSize="1.2em" />} color="red.500">Logout</MenuItem>
-            </MenuList>
-          </Menu>
-        </HStack>
-      </Flex>
+            )}
+            
+            {/* New chat button - hidden on mobile and when search is open */}
+            {(!isMobile && !showMobileSearch) && (
+              <Button
+                leftIcon={<FiPlus size={14} />}
+                colorScheme="brand"
+                size="sm"
+                fontWeight="medium"
+                display={{ base: 'none', sm: 'flex' }}
+                boxShadow="sm"
+              >
+                New Chat
+              </Button>
+            )}
+            
+            {/* Theme toggle */}
+            <Tooltip label={colorMode === 'light' ? 'Dark mode' : 'Light mode'} fontSize="xs">
+              <IconButton
+                aria-label="Toggle color mode"
+                icon={colorMode === 'light' ? <FiMoon size={16} /> : <FiSun size={16} />}
+                variant="ghost"
+                onClick={toggleColorMode}
+                color={colorMode === 'light' ? 'gray.700' : 'yellow.300'}
+                size="sm"
+              />
+            </Tooltip>
+            
+            {/* Notifications */}
+            <Tooltip label="Notifications" fontSize="xs">
+              <IconButton
+                aria-label="Notifications"
+                icon={<FiBell size={16} />}
+                variant="ghost"
+                position="relative"
+                size="sm"
+              >
+                <Badge
+                  position="absolute"
+                  top="2px"
+                  right="2px"
+                  colorScheme="red"
+                  variant="solid"
+                  borderRadius="full"
+                  boxSize="6px"
+                />
+              </IconButton>
+            </Tooltip>
+            
+            {/* User menu */}
+            <Menu placement="bottom-end">
+              <MenuButton
+                as={Button}
+                variant="ghost"
+                size="sm"
+                px={2}
+                py={1}
+                borderRadius="md"
+                _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}
+              >
+                <HStack spacing={2}>
+                  <Avatar
+                    size="xs"
+                    name="User Name"
+                    src="/images/avatar.jpg"
+                    borderWidth={1.5}
+                    borderColor={bgColor}
+                  />
+                  <Text fontSize="sm" fontWeight="medium" display={{ base: 'none', md: 'block' }}>
+                    User Name
+                  </Text>
+                  <Box as={FiChevronDown} size={14} color="gray.500" />
+                </HStack>
+              </MenuButton>
+              <MenuList zIndex={20} py={2} minW="200px">
+                <VStack align="start" px={3} pb={2} mb={2} borderBottom="1px solid" borderColor={borderColor}>
+                  <Text fontWeight="medium">User Name</Text>
+                  <Text fontSize="sm" color="gray.500">user@example.com</Text>
+                </VStack>
+                <MenuItem icon={<FiUser size={14} />} fontSize="sm">Profile</MenuItem>
+                <MenuItem icon={<FiSettings size={14} />} fontSize="sm">Settings</MenuItem>
+                <MenuDivider />
+                <MenuItem icon={<FiLogOut size={14} />} color="red.500" fontSize="sm">Logout</MenuItem>
+              </MenuList>
+            </Menu>
+          </HStack>
+        </Flex>
+      </Container>
       
       {/* Command palette / Global search */}
       <Portal>
@@ -379,17 +423,20 @@ const Header = ({ onMobileMenuOpen, currentView, title }) => {
             <Box 
               ref={searchRef}
               bg={bgColor} 
-              borderRadius="lg" 
-              boxShadow="lg" 
+              borderRadius="xl" 
+              boxShadow="xl" 
               w="full" 
-              maxW="600px"
+              maxW="560px"
               mt={20}
+              overflow="hidden"
+              borderWidth="1px"
+              borderColor={borderColor}
               onClick={(e) => e.stopPropagation()}
             >
               <Box as="form" onSubmit={handleSearchSubmit} p={4}>
-                <InputGroup size="lg">
+                <InputGroup size="md">
                   <InputLeftElement pointerEvents="none">
-                    <FiSearch color="gray.500" />
+                    <FiSearch color="var(--chakra-colors-gray-400)" />
                   </InputLeftElement>
                   <Input 
                     placeholder="Search for chats, bots, or settings..."
@@ -398,30 +445,36 @@ const Header = ({ onMobileMenuOpen, currentView, title }) => {
                     onChange={handleSearchChange}
                     borderRadius="md"
                     variant="filled"
+                    bg={searchBgColor}
+                    _hover={{ bg: searchHoverBgColor }}
+                    _focus={{ bg: searchFocusBgColor }}
+                    fontSize="sm"
                   />
                   <InputRightElement>
                     <Box mr={1}>
-                      <Kbd>Esc</Kbd>
+                      <Kbd fontSize="xs" bg="gray.100" color="gray.500" borderColor="gray.200" px={1.5} py={0.5}>
+                        Esc
+                      </Kbd>
                     </Box>
                   </InputRightElement>
                 </InputGroup>
               </Box>
               
               {searchQuery && (
-                <VStack align="stretch" p={4} pt={0} spacing={2} maxH="300px" overflowY="auto">
-                  <Text fontSize="xs" fontWeight="bold" textTransform="uppercase" color="gray.500" my={2}>
+                <VStack align="stretch" p={2} spacing={1} maxH="320px" overflowY="auto">
+                  <Text fontSize="xs" fontWeight="bold" textTransform="uppercase" color="gray.500" px={2} py={1}>
                     Quick Actions
                   </Text>
                   
-                  <Button variant="ghost" justifyContent="flex-start" leftIcon={<FiPlus />}>
+                  <Button variant="ghost" justifyContent="flex-start" leftIcon={<FiPlus size={14} />} size="sm" borderRadius="md">
                     Create a new chat
                   </Button>
                   
-                  <Button variant="ghost" justifyContent="flex-start" leftIcon={<FiSearch />}>
+                  <Button variant="ghost" justifyContent="flex-start" leftIcon={<FiSearch size={14} />} size="sm" borderRadius="md">
                     Explore available bots
                   </Button>
                   
-                  <Button variant="ghost" justifyContent="flex-start" leftIcon={<FiSettings />}>
+                  <Button variant="ghost" justifyContent="flex-start" leftIcon={<FiSettings size={14} />} size="sm" borderRadius="md">
                     Open settings
                   </Button>
                 </VStack>

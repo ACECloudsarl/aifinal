@@ -1,5 +1,5 @@
-// components/chat/ImageDisplay.js - Redesigned with thumbnail approach
-import React, { useState, useEffect } from 'react';
+// components/chat/ImageDisplay.js - Enhanced with modern design
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Box, 
   Image, 
@@ -23,6 +23,7 @@ import {
   Collapse,
   Circle,
   Center,
+  useToast,
 } from '@chakra-ui/react';
 import { 
   FiDownload, 
@@ -33,8 +34,107 @@ import {
   FiImage,
   FiInfo,
   FiShare2,
+  FiCopy,
 } from 'react-icons/fi';
-import imageService from '@/lib/imageGenerationService';
+
+// Simple mock image service (replace with your actual service)
+const imageService = {
+  // Cache for generated images
+  imageCache: new Map(),
+  
+  // Subscribers for image updates
+  subscribers: [],
+  
+  // Get image from cache
+  getCachedImage(prompt) {
+    return this.imageCache.get(prompt);
+  },
+  
+  // Subscribe to image updates
+  subscribe(callback) {
+    const id = Date.now();
+    this.subscribers.push({ id, callback });
+    return id;
+  },
+  
+  // Unsubscribe from updates
+  unsubscribe(id) {
+    this.subscribers = this.subscribers.filter(sub => sub.id !== id);
+  },
+  
+  // Notify subscribers of image generation
+  notifySubscribers(prompt, imageUrl) {
+    this.subscribers.forEach(sub => {
+      try {
+        sub.callback(prompt, imageUrl);
+      } catch (e) {
+        console.error('Error in subscriber callback:', e);
+      }
+    });
+  },
+  
+  // Generate an image (simplified mock)
+  async generateImage(prompt, forceRegenerate = false) {
+    if (!forceRegenerate && this.imageCache.has(prompt)) {
+      return this.imageCache.get(prompt);
+    }
+    
+    try {
+      // Simulate API call to generate image
+      console.log(`Generating image for prompt: ${prompt}`);
+      
+      // API call to generate image
+      const response = await fetch('/api/images/generate-and-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to generate image');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success || !data.url) {
+        throw new Error('Failed to get image URL');
+      }
+      
+      // Store in cache and notify subscribers
+      this.imageCache.set(prompt, data.url);
+      this.notifySubscribers(prompt, data.url);
+      
+      return data.url;
+    } catch (error) {
+      console.error('Error generating image:', error);
+      throw error;
+    }
+  },
+  
+  // Save image to database
+  async saveToDatabase(messageId, prompt, imageUrl) {
+    if (!messageId || messageId.startsWith('streaming-') || messageId.startsWith('temp-')) {
+      return false;
+    }
+    
+    try {
+      const response = await fetch(`/api/messages/${messageId}/storeImage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          imageUrl,
+          index: 0
+        }),
+      });
+      
+      return response.ok;
+    } catch (error) {
+      console.error('Error saving image to database:', error);
+      return false;
+    }
+  }
+};
 
 const ImageDisplay = ({ 
   prompt, 
@@ -52,18 +152,23 @@ const ImageDisplay = ({
   const [hasTriedDbUpdate, setHasTriedDbUpdate] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
   
+  // Toast notifications
+  const toast = useToast();
+  
   // Modal state
   const { isOpen, onOpen, onClose } = useDisclosure();
   
-  // Colors
+  // Colors for modern dark mode
   const modalBg = useColorModeValue('rgba(0,0,0,0.9)', 'rgba(0,0,0,0.95)');
-  const promptBg = useColorModeValue('gray.50', 'gray.700');
-  const borderColor = useColorModeValue('gray.100', 'gray.600');
+  const promptBg = useColorModeValue('gray.50', 'rgba(45, 55, 72, 0.3)');
+  const borderColor = useColorModeValue('gray.200', 'hsla(0, 0%, 100%, .1)');
   const skeletonStartColor = useColorModeValue('gray.100', 'gray.700');
   const skeletonEndColor = useColorModeValue('gray.300', 'gray.600');
+  const textColor = useColorModeValue('gray.800', '#f2f6fa');
+  const errorBg = useColorModeValue('red.50', 'rgba(254, 178, 178, 0.12)');
   
   // Subscription tracking
-  const subscriptionIdRef = React.useRef(null);
+  const subscriptionIdRef = useRef(null);
   
   // Progress simulation 
   useEffect(() => {
@@ -128,6 +233,14 @@ const ImageDisplay = ({
         } catch (err) {
           setError(err.message || 'Failed to generate image');
           setIsLoading(false);
+          
+          toast({
+            title: "Image Generation Failed",
+            description: err.message || "Failed to generate image",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+          });
         }
       }
     };
@@ -172,6 +285,14 @@ const ImageDisplay = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    toast({
+      title: "Download Started",
+      description: "Your image is being downloaded",
+      status: "info",
+      duration: 2000,
+      isClosable: true,
+    });
   };
   
   // Retry generation
@@ -183,11 +304,27 @@ const ImageDisplay = ({
     setRetryCount(prev => prev + 1);
     setHasTriedGeneration(false);
     
+    toast({
+      title: "Regenerating Image",
+      description: "Please wait while we create a new image",
+      status: "info",
+      duration: 3000,
+      isClosable: true,
+    });
+    
     try {
       await imageService.generateImage(prompt, true); // Force regeneration
     } catch (err) {
       setError(err.message || 'Failed to regenerate image');
       setIsLoading(false);
+      
+      toast({
+        title: "Regeneration Failed",
+        description: err.message || "Failed to regenerate image",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
     }
   };
   
@@ -196,7 +333,14 @@ const ImageDisplay = ({
     if (e) e.stopPropagation();
     if (navigator.clipboard && imageUrl) {
       navigator.clipboard.writeText(imageUrl);
-      // Add toast notification here if you have toast system
+      
+      toast({
+        title: "URL Copied",
+        description: "Image URL copied to clipboard",
+        status: "success",
+        duration: 2000,
+        isClosable: true,
+      });
     }
   };
   
@@ -208,7 +352,7 @@ const ImageDisplay = ({
         overflow="hidden"
         borderRadius="md"
         boxShadow="sm"
-        bg={useColorModeValue("gray.50", "gray.700")}
+        bg={useColorModeValue("gray.50", "gray.800")}
         border="1px solid"
         borderColor={borderColor}
         width={compact ? "100px" : "120px"}
@@ -242,6 +386,7 @@ const ImageDisplay = ({
               top="50%" 
               left="50%" 
               transform="translate(-50%, -50%)"
+              color="blue.400"
             />
           </Center>
         </VStack>
@@ -255,7 +400,7 @@ const ImageDisplay = ({
       <Box 
         p={2}
         color="red.500"
-        bg={useColorModeValue('red.50', 'red.900')}
+        bg={errorBg}
         borderRadius="md"
         border="1px solid"
         borderColor={useColorModeValue('red.100', 'red.700')}
@@ -286,7 +431,7 @@ const ImageDisplay = ({
         overflow="hidden"
         borderRadius="md"
         boxShadow="sm"
-        bg={useColorModeValue("white", "gray.700")}
+        bg={useColorModeValue("white", "gray.800")}
         border="1px solid"
         borderColor={borderColor}
         transition="all 0.2s"
@@ -295,6 +440,7 @@ const ImageDisplay = ({
         height={compact ? "100px" : "120px"}
         cursor="pointer"
         onClick={onOpen}
+        role="group"
       >
         <Image
           src={imageUrl}
@@ -376,7 +522,7 @@ const ImageDisplay = ({
             >
               <VStack align="stretch" spacing={2} maxW="800px" mx="auto">
                 <Text color="white" fontWeight="bold" fontSize="sm">Prompt:</Text>
-                <Text color="whiteAlpha.900" fontSize="sm">{prompt}</Text>
+                <Text color="whiteAlpha.900" fontSize="sm" dir="auto">{prompt}</Text> {/* Auto RTL */}
                 
                 <HStack justify="flex-end" spacing={3} mt={1}>
                   <Button 
@@ -397,6 +543,18 @@ const ImageDisplay = ({
                   >
                     Share
                   </Button>
+                  
+                  {!compact && (
+                    <Button
+                      leftIcon={<FiRefreshCw />}
+                      onClick={handleRetry}
+                      size="sm"
+                      variant="outline"
+                      colorScheme="whiteAlpha"
+                    >
+                      Regenerate
+                    </Button>
+                  )}
                 </HStack>
               </VStack>
             </Box>

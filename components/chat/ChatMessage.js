@@ -1,5 +1,5 @@
-// components/chat/ChatMessage.js - Redesigned with thumbnail images
-import React, { useState, useEffect } from 'react';
+// components/chat/ChatMessage.js - Enhanced with RTL support and better streaming
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Box, 
   Text, 
@@ -28,7 +28,12 @@ import {
   ModalContent,
   Center,
   Circle,
+  useToast,
+  ScaleFade,
 } from '@chakra-ui/react';
+import { keyframes } from '@emotion/react';
+
+
 import { 
   FiCopy, 
   FiRefreshCw, 
@@ -42,9 +47,17 @@ import {
   FiZoomIn,
   FiX,
   FiImage,
+  FiShare2,
 } from 'react-icons/fi';
 import ImageDisplay from './ImageDisplay';
 import voiceService from '@/lib/VoiceService';
+
+// Define keyframes for the typing animation
+const blinkingCursor = keyframes`
+  0% { opacity: 1; }
+  50% { opacity: 0; }
+  100% { opacity: 1; }
+`;
 
 const ChatMessage = ({ 
   message, 
@@ -63,6 +76,10 @@ const ChatMessage = ({
   const [showControls, setShowControls] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedPrompt, setSelectedPrompt] = useState("");
+  const [textDirection, setTextDirection] = useState("ltr");
+  const messageRef = useRef(null);
+  
+  const toast = useToast();
   
   // Modal for full image view
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -85,35 +102,48 @@ const ChatMessage = ({
   const generatedImageCount = imageTags.length;
   const imageCount = storedImageCount + generatedImageCount;
   
-  // Colors and Styles
-  const userBubbleBg = useColorModeValue("blue.50", "blue.800");
-  const botBubbleBg = useColorModeValue("gray.50", "gray.700");
-  const userTextColor = useColorModeValue("gray.800", "white");
-  const botTextColor = useColorModeValue("gray.800", "white");
-  const lightBorderColor = useColorModeValue("gray.200", "gray.600");
-  const controlsBg = useColorModeValue("white", "gray.800");
+  // Colors and Styles - Modern dark theme
+  const userBubbleBg = useColorModeValue("blue.50", "rgba(66, 153, 225, 0.15)");
+  const botBubbleBg = useColorModeValue("gray.50", "rgba(45, 55, 72, 0.3)");
+  const userTextColor = useColorModeValue("gray.800", "#f2f6fa"); // content-primary from your theme
+  const botTextColor = useColorModeValue("gray.800", "#f2f6fa");
+  const lightBorderColor = useColorModeValue("gray.200", "hsla(0, 0%, 100%, .1)"); // border-light from your theme
+  const controlsBg = useColorModeValue("white", "#2b2b2b"); // sidebar-surface from your theme
   const modalBg = useColorModeValue('rgba(0,0,0,0.9)', 'rgba(0,0,0,0.95)');
+  const typingColor = useColorModeValue("blue.500", "blue.300");
   
-  // Check RTL and load voice settings on mount
+  // Animation for blinking cursor in streaming
+  const cursorAnimation = `${blinkingCursor} 1s infinite`;
+  
+  // Get main container width for RTL detection
+  const mainContainerRef = useRef(null);
+  
+  // Detect RTL and load voice settings on mount
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setIsRTL(document.dir === 'rtl');
-      
-      const loadSettings = async () => {
+    // Auto-detect RTL from content
+    if (textContent) {
+      const isRTLText = isRTLContent(textContent);
+      setIsRTL(isRTLText);
+      setTextDirection(isRTLText ? "rtl" : "ltr");
+    }
+    
+    // Load voice settings
+    const loadSettings = async () => {
+      try {
         const settings = await voiceService.loadUserSettings();
         if (settings) {
           setAutoTTSEnabled(settings.autoTTS);
         }
-      };
-      
-      loadSettings();
-    }
+      } catch (error) {
+        console.error("Error loading voice settings:", error);
+      }
+    };
+    
+    loadSettings();
     
     // Subscribe to voice service events
     const unsubscribePlaying = voiceService.subscribeToPlaying(() => {
-      if (isMessageSpeaking) {
-        setIsMessageSpeaking(true);
-      }
+      setIsMessageSpeaking(true);
     });
     
     const unsubscribeStopped = voiceService.subscribeToStopped(() => {
@@ -123,8 +153,20 @@ const ChatMessage = ({
     return () => {
       unsubscribePlaying();
       unsubscribeStopped();
+      
+      // Stop any playing audio when component unmounts
+      if (isMessageSpeaking) {
+        voiceService.stopAudio();
+      }
     };
   }, []);
+  
+  // Check if content contains RTL text
+  const isRTLContent = (text) => {
+    // RTL character detection regex
+    const rtlChars = /[\u0591-\u07FF\u200F\u202B\u202E\uFB1D-\uFDFD\uFE70-\uFEFC]/;
+    return rtlChars.test(text);
+  };
   
   // Auto-speak assistant messages if auto TTS is enabled
   useEffect(() => {
@@ -133,7 +175,8 @@ const ChatMessage = ({
         !isUser && 
         autoTTSEnabled && 
         !message.id.startsWith('temp-') && 
-        !isMessageSpeaking
+        !isMessageSpeaking &&
+        !isStreaming
       ) {
         if (!hasStoredImages && imageTags.length === 0) {
           handleSpeak();
@@ -142,7 +185,7 @@ const ChatMessage = ({
     };
     
     autoSpeak();
-  }, [autoTTSEnabled, message.id, isUser, hasStoredImages, imageTags.length]);
+  }, [autoTTSEnabled, message.id, isUser, hasStoredImages, imageTags.length, isStreaming]);
   
   // Function to parse image tags
   function parseContentForImageTags(content) {
@@ -178,6 +221,14 @@ const ChatMessage = ({
     } catch (error) {
       console.error('Error speaking message:', error);
       setIsMessageSpeaking(false);
+      
+      toast({
+        title: "Speech Error",
+        description: "Unable to speak text. Please check voice settings.",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
     }
   };
   
@@ -185,6 +236,15 @@ const ChatMessage = ({
   const handleCopy = () => {
     onCopy(hasStoredImages ? message.content : textContent);
     setCopied(true);
+    
+    toast({
+      title: "Copied",
+      description: "Message copied to clipboard",
+      status: "success",
+      duration: 2000,
+      isClosable: true,
+    });
+    
     setTimeout(() => setCopied(false), 2000);
   };
   
@@ -206,40 +266,66 @@ const ChatMessage = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    toast({
+      title: "Download Started",
+      description: "Your image is being downloaded",
+      status: "info",
+      duration: 2000,
+      isClosable: true,
+    });
   };
   
-  // Content rendering helper
+  // Share selected image
+  const handleShareSelected = () => {
+    if (!selectedImage) return;
+    
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(selectedImage);
+      
+      toast({
+        title: "Link Copied",
+        description: "Image link copied to clipboard",
+        status: "success",
+        duration: 2000,
+        isClosable: true,
+      });
+    }
+  };
+  
+  // Content rendering helper with RTL support
   const renderContent = () => {
     if (isStreaming && !isUser) {
       return (
         <Box pos="relative">
-          <Text whiteSpace="pre-wrap">{textContent || " "}</Text>
-          {textContent === "" && <Skeleton height="20px" width="60%" mt={2} />}
-          <Box 
-            pos="absolute" 
-            bottom={0} 
-            right={-4} 
-            h="16px" 
-            w="16px" 
-            borderRadius="full"
+          <Text 
+            whiteSpace="pre-wrap" 
+            dir={textDirection}
           >
-            <Box
-              pos="absolute"
-              h="16px"
-              w="16px"
-              borderRadius="full"
-              bg={useColorModeValue("blue.400", "blue.500")}
-              opacity={0.5}
-              animation="pulse 1.5s infinite"
+            {textContent || " "}
+            <Box 
+              as="span" 
+              display="inline-block" 
+              width="2px" 
+              height="1em" 
+              bg={typingColor} 
+              ml={1} 
+              verticalAlign="middle"
+              animation={cursorAnimation}
             />
-          </Box>
+          </Text>
+          {textContent === "" && <Skeleton height="20px" width="60%" mt={2} />}
         </Box>
       );
     }
     
-    // Regular content
+    // Regular content with auto RTL detection
     return (
-      <Text whiteSpace="pre-wrap">
+      <Text 
+        whiteSpace="pre-wrap"
+        dir="auto" // Auto-detect RTL
+        ref={messageRef}
+      >
         {hasStoredImages ? message.content : textContent}
       </Text>
     );
@@ -252,6 +338,7 @@ const ChatMessage = ({
       onMouseLeave={() => setShowControls(false)}
       position="relative"
       mb={4}
+      ref={mainContainerRef}
     >
       <HStack 
         align="flex-start" 
@@ -295,6 +382,8 @@ const ChatMessage = ({
             borderTopLeftRadius={isUser ? "lg" : "sm"}
             width="full"
             boxShadow="sm"
+            borderWidth="1px"
+            borderColor={lightBorderColor}
           >
             {/* Text content */}
             {renderContent()}
@@ -423,7 +512,7 @@ const ChatMessage = ({
           </Box>
           
           {/* Message controls - conditionally shown */}
-          <Fade in={showControls && !isUser && !isStreaming}>
+          <ScaleFade in={showControls && !isUser && !isStreaming}>
             <HStack spacing={1} py={1} px={2} borderRadius="md">
               <Tooltip label={copied ? "Copied!" : "Copy"}>
                 <IconButton
@@ -475,7 +564,7 @@ const ChatMessage = ({
                 </MenuList>
               </Menu>
             </HStack>
-          </Fade>
+          </ScaleFade>
         </VStack>
         
         {/* Avatar - only show on right for user */}
@@ -533,6 +622,13 @@ const ChatMessage = ({
                     onClick={handleDownloadSelected}
                     colorScheme="blue"
                     aria-label="Download image"
+                  />
+                  
+                  <IconButton 
+                    icon={<FiShare2 />} 
+                    onClick={handleShareSelected}
+                    colorScheme="green"
+                    aria-label="Share image"
                   />
                 </HStack>
               </VStack>
