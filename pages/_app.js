@@ -7,6 +7,7 @@ import rtlPlugin from 'stylis-plugin-rtl';
 import createCache from '@emotion/cache';
 import { SessionProvider } from 'next-auth/react';
 
+
 // Create rtl cache
 const createRtlCache = () => {
   return createCache({
