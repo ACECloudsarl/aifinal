@@ -128,13 +128,7 @@ const VoiceRecorder = ({ onVoiceRecorded, isRecording, setIsRecording }) => {
       
       // Start recording - collect data more frequently for better chunks
       recorderRef.current.start(100);
-      
-      toast({
-        title: "Recording Started",
-        description: "Speak clearly into your microphone",
-        status: "info",
-        duration: 2000,
-      });
+   
       
     } catch (error) {
       console.error("Error starting recording:", error);
@@ -259,11 +253,7 @@ const VoiceRecorder = ({ onVoiceRecorded, isRecording, setIsRecording }) => {
       
       if (data.transcript && data.transcript.trim()) {
         onVoiceRecorded(data.transcript);
-        toast({
-          title: "Transcription Success",
-          status: "success",
-          duration: 2000,
-        });
+     
       } else {
         throw new Error("No speech detected");
       }

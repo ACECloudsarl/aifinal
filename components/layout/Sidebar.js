@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import NextLink from 'next/link';
+import LanguageSelector from './LanguageSelector';
 import {
   Box,
   Flex,
@@ -514,6 +515,10 @@ const Sidebar = ({
           </VStack>
         </Box>
       )}
+
+      <LanguageSelector>
+        
+      </LanguageSelector>
 
       {/* Bottom user section */}
       <Box mt="auto" pt={4} px={isCollapsed ? 2 : 5}>
